@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+		<title>Annex Librarian</title>
+
+		<!-- Bootstrap -->
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+		<link rel="stylesheet" href="style/librarian.css" />
+
+		<!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+		<!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+		<!--[if lt IE 9]>
+			<script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
+			<script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+		<![endif]-->
+	</head>
+	<body>
+
+		<nav class="navbar navbar-default">
+			<div class="container-fluid">
+				<div class="navbar-header">
+					<a class="navbar-brand" href="">
+						<i id="status-indicator" class="glyphicon glyphicon-off"></i>
+						&nbsp;
+						Annex Librarian
+					</a>
+				</div>
+				<div id="navbar" class="navbar-collapsex collapsex">
+					<ul class="nav navbar-nav navbar-right">
+						<li>
+							<a href="#" id="action-select" class="state-control"i>
+								<i class="glyphicon glyphicon-ok" title="Toggle select mode"></i>
+							</a>
+						</li>
+						<li>
+							<a href="#" id="action-console" class="state-control">
+								<i class="glyphicon glyphicon-menu-right" title="Console"></i>
+							</a>
+						</li>
+					</ul>
+					<form class="navbar-form navbar-right" id="search-form">
+						<div class="form-group">
+							<input type="text" placeholder="Search" 
+								class="form-control state-control" id="search-input">
+							<button type="submit" class="btn btn-default">
+								<i class="glyphicon glyphicon-search"></i>
+							</button>
+						</div>
+					</form>
+					<ul class="nav navbar-nav navbar-right">
+						<li>
+							<a href="#" id="state-prev"><i class="glyphicon glyphicon-arrow-left"></i></a>
+						</li>
+						<li><span class="navbar-text" id="state-pos">Foo</span></li>
+						<li>
+							<a href="#" id="state-next"><i class="glyphicon glyphicon-arrow-right"></i></a>
+						</li>
+					</ul>
+				</div><!--/.navbar-collapse -->
+			</div>
+		</nav>
+
+		<div class="container-fluid">
+			<div id="content">
+				<div id="image-grid" class="text-center"/>
+			</div>
+		</div>
+
+		<!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+		<!-- Include all compiled plugins (below), or include individual files as needed -->
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+		<script src="js/librarian.js"></script>
+
+		<div class="modal" tabindex="-1" id="console" role="dialog">
+			<div class="modal-dialog modal-lg" role="document">
+				<div class="modal-content">
+					<div class="modal-header">
+						<button type="button" class="close" id="console-close">
+							<span aria-hidden="true">&times;</span>
+						</button>
+						<h4 class="modal-title">Annex Console</h4>
+					</div>
+					<div class="modal-body">
+						<form id="console-form">
+							<div class="input-group">
+								<span class="input-group-addon">&gt;</span>
+								<input type="text" class="form-control" id="console-input"/>
+							</div>
+						</form>
+						<h6 id="console-status" class="text-right">Nothing selected</h6>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="modal" tabindex="-1" id="detail" role="dialog">
+			<div class="modal-dialog modal-lg" role="document">
+				<div class="modal-content">
+					<div class="modal-header">
+						<button type="button" class="close" id="detail-close">
+							<span aria-hidden="true">&times;</span>
+						</button>
+						<h5 class="modal-title text-center" id="detail-title"></h5>
+					</div>
+					<div class="modal-body">
+						<div>
+							<div class="col-md-8 text-center">
+								<img id="detail-image" class="img-responsive"/>
+							</div>
+							<div class="col-md-4">
+								<div id="detail-meta"/>	
+							</div>
+						</div>
+						<div class="clearfix"/>
+					</div>
+				</div>
+			</div>
+		</div>
+
+	</body>
+</html>

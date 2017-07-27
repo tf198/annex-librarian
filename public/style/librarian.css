@@ -1,0 +1,47 @@
+DIV.preview {
+	display: inline-block;
+	width: 150px;
+	height: 150px;
+	background-position: top center;
+	background-color: #DDD;
+	background-size: cover;
+	outline: 1px solid #AAA;
+	margin: 5px;
+}
+
+.action-enabled {
+	color: #b33;
+}
+
+.hidden {
+	display: none;
+}
+
+DIV.selected {
+	outline: 4px solid #b33;
+}
+
+#console {
+	position: absolute;
+	top: 100px;
+	left: 80px;
+	right: 80px;
+}
+
+#console-close {
+	color: white;
+	font-weight: bold;
+	text-decoration: none;
+}
+
+#detail-image {
+	border: 1px solid #AAA;
+}
+
+#detail .label {
+	margin: 0 3px;
+}
+
+#detail PRE {
+	margin: 10px 5px;
+}

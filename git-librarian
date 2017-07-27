@@ -1,0 +1,84 @@
+#!/usr/bin/env python2.7
+
+import argparse
+import sys
+import logging
+
+from librarian import Librarian
+
+logger = logging.getLogger(__name__)
+
+def sync(l, options):
+    return l.sync(options.commit)
+
+def search(l, options):
+    result = l.search(" ".join(options.terms), options.offset, options.limit)
+    for r in result['matches']:
+        sys.stdout.write("%r\n" % r)
+    print(result['total'])
+
+def server(l, options):
+    from librarian.api import create_api
+    from flask import Flask, send_from_directory
+    from gevent.wsgi import WSGIServer
+
+    api = create_api(l)
+
+    app = Flask(__name__)
+    app.register_blueprint(api, url_prefix='/api')
+
+    @app.route('/public/<path:path>')
+    @app.route('/public/', defaults={'path': 'index.html'})
+    def static_files(path):
+        return send_from_directory('public', path)
+
+    l.sync()
+    logger.info("Listening on %d", options.port)
+    WSGIServer(('', options.port), app).serve_forever()
+
+
+parser = argparse.ArgumentParser(description="Librarian for Git Annex")
+
+parser.add_argument('-C', default='.', dest="path", 
+        help="Run as if git was started in <PATH>")
+parser.add_argument('-v', action='store_true', dest="verbose",
+        help="Verbose output")
+
+subparsers = parser.add_subparsers();
+
+sync_cmd = subparsers.add_parser('sync', help="Synchronize library")
+sync_cmd.add_argument('-c', '--commit', help="From commit")
+sync_cmd.set_defaults(func=sync)
+
+search_cmd = subparsers.add_parser('search', help="Search library")
+search_cmd.add_argument('terms', nargs="+",
+        help="Search terms")
+search_cmd.add_argument('-o', '--offset', type=int, default=0,
+        help="Offset results")
+search_cmd.add_argument('-l', '--limit', type=int, default=20,
+        help="Limit results")
+search_cmd.set_defaults(func=search)
+
+server_cmd = subparsers.add_parser('server', help="Run api server")
+server_cmd.add_argument('-p', '--port', type=int, default=7920,
+        help="Port to use")
+server_cmd.set_defaults(func=server)
+
+args = parser.parse_args()
+
+if not hasattr(args, 'func'):
+    parser.print_help()
+    exit(1)
+
+log_level = logging.DEBUG if args.verbose else logging.INFO
+logging.basicConfig(level=log_level)
+
+logging.debug(args)
+
+try:
+    l = Librarian(args.path)
+    args.func(l, args)
+except Exception as e:
+    sys.stderr.write("Error: {0}\n".format(e))
+    logging.exception(e)
+    exit(1)

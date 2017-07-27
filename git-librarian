@@ -3,6 +3,7 @@
 import argparse
 import sys
 import logging
+import os.path
 
 from librarian import Librarian
 
@@ -27,10 +28,13 @@ def server(l, options):
     app = Flask(__name__)
     app.register_blueprint(api, url_prefix='/api')
 
+    here = os.path.dirname(os.path.realpath(__file__))
+    logger.info("Serving static files from %s", here);
+
     @app.route('/public/<path:path>')
     @app.route('/public/', defaults={'path': 'index.html'})
     def static_files(path):
-        return send_from_directory('public', path)
+        return send_from_directory(os.path.join(here, 'public'), path)
 
     l.sync()
     logger.info("Listening on %d", options.port)

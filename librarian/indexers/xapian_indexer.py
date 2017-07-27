@@ -21,6 +21,7 @@ PREFIXES = (
     ('id', 'Q'), # uniQue
     ('raw', 'R'),
     ('subject', 'S'), # or title
+    ('description', 'S'),
     ('mimetype', 'T'),
     ('exclude', 'V'),
     ('year', 'Y'),
@@ -55,6 +56,8 @@ class XapianIndexer:
     def __init__(self, path):
         self.path = path
 
+        self.tg = xapian.TermGenerator()
+
     @property
     def db(self):
         if self._db is None:
@@ -74,11 +77,11 @@ class XapianIndexer:
 
         self._db = None
 
-    def get_latest(self):
-        return self.db.get_metadata('latest')
+    def get_value(self, key):
+        return self.db.get_metadata(key)
 
-    def set_latest(self, commit):
-        return self.db.set_metadata('latest', commit)
+    def set_value(self, key, value):
+        return self.db.set_metadata(key, value)
 
     def update(self, key, meta):
         try:
@@ -90,17 +93,24 @@ class XapianIndexer:
 
         for field, values in meta.items():
             field = TERM_PREFIXES.get(field, field.upper())
-            for value in values:
-                if value:
-                    doc.add_boolean_term(field + value.lower())
-                    doc.add_boolean_term(value.lower())
+
+            if field in ['K', 'E', 'D']:
+                for value in values:
+                    doc.add_term(field + value.lower())
+            
+            if field not in ['D']:
+                for value in values:
+                    for word in value.split():
+                        doc.add_term(word.lower())
 
         doc.set_data(json.dumps(meta))
-        doc.add_value(0, key);
-        doc.add_value(1, date), 
+        doc.add_value(0, key)
+        doc.add_value(1, date) 
 
         idterm = u"Q" + key.lower()
         doc.add_boolean_term(idterm)
+
+        #print(doc)
 
         self.db.replace_document(idterm, doc)
 
@@ -112,7 +122,9 @@ class XapianIndexer:
         if len(matches) == 0: raise KeyError("Key not found");
         
         docid = matches[0].docid
-        return json.loads(self.db.get_document(docid).get_data())
+        data = json.loads(self.db.get_document(docid).get_data())
+        data['docid'] = docid
+        return data
 
 
 
@@ -134,7 +146,7 @@ class XapianIndexer:
 
         # Use an Enquire object on the database to run the query
         enquire = xapian.Enquire(self.db)
-        #enquire.set_sort_by_relevance_then_value(1, False)
+        enquire.set_sort_by_relevance_then_value(1, False)
         #enquire.set_sort_by_relevance()
         enquire.set_query(query)
 

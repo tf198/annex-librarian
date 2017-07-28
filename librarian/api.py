@@ -79,15 +79,21 @@ def create_api(librarian):
             return abort(400)
 
         try:
-            cmd = ['annex', 'metadata'] + shlex.split(payload['cmd'])
-            cmd.append('--key')
+            cmd = shlex.split(payload['cmd'])
         except KeyError:
             return abort(400)
-  
+ 
+        if 'keys' not in payload:
+            try:
+                return jsonify(librarian.git_lines(*cmd))
+            except Exception, e:
+                return abort(400)
+
+        cmd.append('--key')
         for key in payload['keys']:
             try:
                 args = cmd + [key]
-                librarian.git_raw(*args)
+                librarian.git_lines(*args)
             except Exception, e:
                 return abort(400)
 

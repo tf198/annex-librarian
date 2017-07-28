@@ -1,10 +1,13 @@
 import os.path
 import logging
 import base64
-from indexers import xapian_indexer as indexer
+from backends import xapian_indexer as indexer
 from gevent import subprocess
 
 logger = logging.getLogger(__name__);
+
+DEFAULT_CONFIG = {
+}
 
 def parse_meta_log(lines):
     result = {}
@@ -33,10 +36,14 @@ def parse_meta_log(lines):
 
 class Librarian:
 
-    def __init__(self, path):
+    def __init__(self, path, config=None):
         self.base_path = os.path.abspath(path)
         if not os.path.exists(self.base_path):
             raise RuntimeError("No such path: {}".format(this.base_path))
+
+        self.config = dict(DEFAULT_CONFIG);
+        if config: 
+            self.config.update(config)
 
         # check it is an annexed repo
         if not os.path.exists(os.path.join(self.base_path, '.git', 'annex')):
@@ -84,9 +91,9 @@ class Librarian:
         if len(r) != 1: raise IndexError("Expected one line, got {0}".format(len(r)))
         return r[0]
 
-    def sync(self, start=None):
+    def sync(self, start=None, fresh=False):
 
-        self.index.set_writable()
+        self.index.set_writable(fresh)
 
         for filename, stat in self.file_modifications('git-annex', start):
                     
@@ -111,6 +118,7 @@ class Librarian:
                             self._process_log(key, stat, meta)
 
         self.index.unset_writable()
+        return self.get_head('git-annex')
 
     def file_modifications(self, branch, start=None, update_head=True):
 
@@ -170,7 +178,7 @@ class Librarian:
         return self.index.search(terms, offset, pagesize)
 
     def get_meta(self, key):
-        return self.index.get_data(key + '.met')
+        return self.index.get_data(key)
 
     def thumb_for_key(self, key):
         filepath = os.path.join(self.cache_dir, key + "-thumb.jpg");

@@ -5,7 +5,9 @@ import json
 
 logger = logging.getLogger(__name__)
 
-ISO_8601="%Y-%m-%dT%H:%M:%S"
+ISO_8601 = "%Y-%m-%dT%H:%M:%S"
+
+DB_VERSION = '0.1.1'
 
 PREFIXES = (
     ('author', 'A'),
@@ -14,6 +16,7 @@ PREFIXES = (
     ('extension', 'E'),
     ('filename', 'F'),
     ('include', 'I'),
+    ('keyword', 'K'),
     ('tag', 'K'), # Keyword
     ('language', 'L'),
     ('month', 'M'),
@@ -56,26 +59,40 @@ class XapianIndexer:
     def __init__(self, path):
         self.path = path
 
-        self.tg = xapian.TermGenerator()
+    def _check_version(self):
+        current = self._db.get_metadata('db:version')
+        logger.debug("Database version: %s", current)
+        if current and current != DB_VERSION:
+            raise RuntimeError("Need to upgrade database to " + DB_VERSION)
 
     @property
     def db(self):
         if self._db is None:
             self._db = xapian.Database(self.path)
+            self._check_version()
+
         return self._db
 
-    def set_writable(self):
+    def set_writable(self, clear=False):
         if self._db is not None:
             self._db.close()
 
-        self._db = xapian.WritableDatabase(self.path, xapian.DB_CREATE_OR_OPEN)
+        flags = xapian.DB_CREATE_OR_OVERWRITE if clear else xapian.DB_CREATE_OR_OPEN
 
+        self._db = xapian.WritableDatabase(self.path, flags)
+        self._check_version()
+
+        
     def unset_writable(self):
 
         if self._db is not None:
+            self._db.set_metadata('db:version', DB_VERSION)
             self._db.close()
 
         self._db = None
+
+    def close(self):
+        self.unset_writable()
 
     def get_value(self, key):
         return self.db.get_metadata(key)

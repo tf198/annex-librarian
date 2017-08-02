@@ -28,6 +28,15 @@ DIV.selected {
 	right: 80px;
 }
 
+#console-output {
+	white-space: pre;
+	margin: 10px;
+	border: 1px solid #999;
+	padding: 10px;
+	background-color: #333;
+	color: #999;
+}
+
 #console-close {
 	color: white;
 	font-weight: bold;

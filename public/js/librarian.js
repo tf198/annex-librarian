@@ -7,7 +7,7 @@ const ICON_ERROR = 'alert';
 const state = {
     query: 'state:new',
     offset: 0,
-    limit: 24 
+    limit: 28,
 }
 
 var select_mode = false;
@@ -49,7 +49,10 @@ $(document).on('ready', () => {
 
     $('#action-console').on('click', (e) => {
         var selected = $('DIV.selected');
-        showConsole(selected.length + " items selected");
+        var message = (selected.length) ? "Metadata for " + selected.length + " items" : "No items selected";
+        var prefix = (selected.length) ? "annex metadata" : "";
+
+        showConsole(prefix, message);
     });
 
     $('#console-form').on("submit", (e) => {
@@ -66,6 +69,15 @@ $(document).on('ready', () => {
 
     $('#console-close').on('click', (e) => {
         $('#console').modal('hide');
+    });
+
+    $('#detail-console').on('click', (e) => {
+        var detail = $('#detail');
+        var key = detail.data('key');
+        detail.modal('hide');
+        $('DIV.selected').removeClass('selected');
+        $('#' + key).addClass('selected');
+        
     });
 });
 
@@ -99,10 +111,11 @@ function displayImages(images) {
     var imageGrid = $('<div/>');
 
     images.map((image) => {
+
         var preview = $('<div class="preview"/>');
-        preview.attr('title', image.tags.join(" "));
+        preview.attr('title', image.info || "unknown");
+        preview.attr('id', image.key);
         preview.css('background-image', 'url("/api/thumb/' + image.key + '")');
-        preview.data('key', image.key);
         
         preview.on('click', (e) => {
             if (select_mode) {
@@ -128,9 +141,10 @@ function setActionsEnabled(value) {
     $('.state-control').prop('disabled', !value);
 }
 
-function showConsole(statusText) {
-    setActionsEnabled(false);
+function showConsole(prefix, statusText) {
     $('#console-status').html(statusText);
+    $('#console-output').html('');
+    $('#console-prefix').html(prefix);
     $('#console').modal('show');
     $('#console-input').select();
 }
@@ -138,10 +152,15 @@ function showConsole(statusText) {
 function sendCommand(cmd) {
     var keys = [];
     $('DIV.selected').each(function(i) {
-        keys.push($(this).data('key'));
+        keys.push($(this).attr('id'));
     });
 
-    var payload = {cmd, keys};
+    var payload = {cmd}
+    if (keys.length) {
+        payload['keys'] = keys;
+        payload['cmd'] = 'annex metadata ' + cmd;
+    }
+    console.log(payload);
 
     setActionsEnabled(false);
     
@@ -150,22 +169,27 @@ function sendCommand(cmd) {
         headers: new Headers({'Content-Type': 'application/json'}),
         body: JSON.stringify(payload)
     }).then((response) => {
-        console.log(response);
         setActionsEnabled(true);
-        $('#console').modal('hide');
         if (response.status == 200) {
-            update()
+            return response.json();
         } else {
-            alert(response.statusText);
+            $('#console-output').html(response.statusText);
         }
-    })
+    }).then((result) => {
+        $('#console-output').html(result.message);
+        if(result.result) {
+            setTimeout(() => {
+                $('#console').modal('hide');
+            }, 1000);
+        }
+    });
 
 
 }
 
 function showDetail(image) {
-    console.log(image.tags);
-    $('#detail').modal('show');
+    console.log(image);
+    $('#detail').modal('show').data('key', image.key);
     $('#detail-title').html(image.key);
 
     var el = $('#detail-image');
@@ -177,10 +201,6 @@ function showDetail(image) {
         });
 
     var tags = $('<div/>');
-    image.tags.map((tag) => {
-        var badge = $('<span class="label label-primary"></span>').html(tag);
-        tags.append(badge);
-    });
 
     $('#detail-meta')
         .empty()
@@ -188,8 +208,20 @@ function showDetail(image) {
 
     fetch('/api/data/' + image.key).then((response) => {
         console.log(response);
-        return response.text();
+        return response.json();
     }).then((data) => {
-        $('#detail-meta').append($('<pre/>').html(data));
+        var meta = ""
+        console.log(data)
+        for (var k in data) {
+            var v = data[k]
+            if (Array.isArray(v)) v = v.join(", ")
+            meta += "<strong>" + k + ":</strong> " + v + "\n";
+        }
+
+        $('#detail-meta').append($('<pre/>').html(meta));
+        data['tag'].map((tag) => {
+            var badge = $('<span class="label label-primary"></span>').html(tag);
+            tags.append(badge);
+        });
     });
 }

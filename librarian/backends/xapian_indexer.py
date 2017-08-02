@@ -2,47 +2,21 @@ import xapian
 import time
 import logging
 import json
+from librarian.backends import terms
 
 logger = logging.getLogger(__name__)
 
 ISO_8601 = "%Y-%m-%dT%H:%M:%S"
 
-DB_VERSION = '0.1.1'
+DB_VERSION = "{0}.{1}".format(terms.SCHEMA_VERSION, 1)
 
-PREFIXES = (
-    ('author', 'A'),
-    ('topic', 'B'), # aBout
-    ('date', 'D'),
-    ('extension', 'E'),
-    ('filename', 'F'),
-    ('include', 'I'),
-    ('keyword', 'K'),
-    ('tag', 'K'), # Keyword
-    ('language', 'L'),
-    ('month', 'M'),
-    ('path', 'P'),
-    ('id', 'Q'), # uniQue
-    ('raw', 'R'),
-    ('subject', 'S'), # or title
-    ('description', 'S'),
-    ('mimetype', 'T'),
-    ('exclude', 'V'),
-    ('year', 'Y'),
-    ('stemmed', 'Z'),
-
-    ('device', 'XD'),
-    ('orientation', 'XO'),
-    ('width', 'XW'),
-    ('height', 'XH'),
-    ('state', 'XS'),
-)
-TERM_PREFIXES = dict(PREFIXES)
+STEMMING = xapian.QueryParser.STEM_SOME
 
 def encode_sortable_date(d):
     try:
         t = time.strptime(d, ISO_8601)
         n = -int(time.mktime(t))
-    except ValueError:
+    except:
         n = 0;
 
     return xapian.sortable_serialise(n)
@@ -58,6 +32,19 @@ class XapianIndexer:
 
     def __init__(self, path):
         self.path = path
+
+        self.term_generator = xapian.TermGenerator()
+        self.term_generator.set_stemmer(xapian.Stem("en"))
+        self.term_generator.set_stemming_strategy(STEMMING)
+
+        self.query_parser = xapian.QueryParser()
+        self.query_parser.set_stemmer(xapian.Stem("en"))
+        self.query_parser.set_stemming_strategy(STEMMING)
+
+        for field, prefix in terms.FREE_PREFIXES:
+            self.query_parser.add_prefix(field, prefix)
+        for field, prefix in terms.BOOLEAN_PREFIXES:
+            self.query_parser.add_boolean_prefix(field, prefix)
 
     def _check_version(self):
         current = self._db.get_metadata('db:version')
@@ -100,39 +87,71 @@ class XapianIndexer:
     def set_value(self, key, value):
         return self.db.set_metadata(key, value)
 
-    def update(self, key, meta):
-        try:
-            date = encode_sortable_date(meta['date'][0]);
-        except KeyError:
-            date = encode_sortable_date('');
-    
+    def update(self, key, meta, doctype, idterm=None, sortvalue=None):
+        #try:
+        #    date = encode_sortable_date(meta['date'][0]);
+        #except KeyError:
+        #    date = encode_sortable_date('');
+
+        logger.debug("%r", meta)
+
         doc = xapian.Document()
+        self.term_generator.set_document(doc)
+
+        boolean_terms = []
 
         for field, values in meta.items():
-            field = TERM_PREFIXES.get(field, field.upper())
 
-            if field in ['K', 'E', 'D']:
+            if not isinstance(values, (list, tuple)):
+                values = [values]
+
+            if field == 'date':
+                try:
+                    parts = values[0].split('T')[0].split('-')
+                    boolean_terms.append('Y{0}'.format(parts[0]))
+                    boolean_terms.append('M{0}{1}'.format(parts[0], parts[1]))
+                    boolean_terms.append('D{0}{1}{2}'.format(parts[0], parts[1], parts[2]))
+                    continue
+                except IndexError:
+                    pass
+
+            # prepare boolean prefixed terms
+            if field in terms.BOOLEAN_TERMS:
+                field = terms.BOOLEAN_TERMS[field]
                 for value in values:
-                    doc.add_term(field + value.lower())
-            
-            if field not in ['D']:
-                for value in values:
-                    for word in value.split():
-                        doc.add_term(word.lower())
+                    if value: boolean_terms.append(field + value.lower())
+            elif field in terms.FREE_TERMS:
+                field = terms.FREE_TERMS[field]
+
+            if field in terms.SKIP_FREE:
+                continue
+
+            for value in values:
+                for word in value.split():
+                    self.term_generator.index_text(word)
+                self.term_generator.increase_termpos()
+
+        # add the boolean terms after the 
+        for t in boolean_terms:
+            doc.add_boolean_term(t)
 
         doc.set_data(json.dumps(meta))
         doc.add_value(0, key)
-        doc.add_value(1, date) 
+        doc.add_value(1, sortvalue)
+        doc.add_value(2, doctype)
 
-        idterm = u"Q" + key.lower()
+        if idterm is None:
+            idterm = key
+
+        idterm = "Q{0}{1}".format(doctype, idterm)
         doc.add_boolean_term(idterm)
 
-        #print(doc)
+        #print([ x.term for x in doc.termlist() ])
 
         self.db.replace_document(idterm, doc)
 
     def get_data(self, key):
-        term = u"Q" + key.lower()
+        term = "QK{0}".format(key)
 
         matches = list(self.db.postlist(term))
         if len(matches) > 1: raise KeyError("Key is not unique!");
@@ -143,47 +162,92 @@ class XapianIndexer:
         data['docid'] = docid
         return data
 
+    def alldocs(self, offset=0, pagesize=10):
 
+        return self.search(None, offset, pagesize)
+
+        items = self.db.allterms('QK')
+
+        matches = [ {'key': i.term[2:]} for i in items ]
+        total = len(matches)
+
+        if offset: matches = matches[offset:]
+        if pagesize: matches = matches[:pagesize]
+        
+        return {'total': total, 'matches': matches} 
 
     def search(self, querystring, offset=0, pagesize=10):
 
-        queryparser = xapian.QueryParser()
-    
-        # Start of prefix configuration.
+        if querystring:
+            #queryparser = xapian.QueryParser()
+            #queryparser.set
+        
+            # Start of prefix configuration.
 
-        for field, prefix in PREFIXES:
-            queryparser.add_prefix(field, prefix)
-        # End of prefix configuration.
+            #for field, prefix in terms.FREE_PREFIXES:
+            #    queryparser.add_prefix(field, prefix)
+            #for field, prefix in terms.BOOLEAN_PREFIXES:
+            #    queryparser.add_boolean_prefix(field, prefix)
+            # End of prefix configuration.
 
-        # And parse the query
-        logger.debug("Query string: %s", querystring)
-        query = queryparser.parse_query(querystring,
-                xapian.QueryParser.FLAG_WILDCARD | xapian.QueryParser.FLAG_BOOLEAN | xapian.QueryParser.FLAG_LOVEHATE)
-        logger.debug(query);
+            # And parse the query
+            logger.debug("Query string: %s", querystring)
+            query = self.query_parser.parse_query(querystring,
+                    xapian.QueryParser.FLAG_PURE_NOT | xapian.QueryParser.FLAG_WILDCARD | xapian.QueryParser.FLAG_BOOLEAN | xapian.QueryParser.FLAG_LOVEHATE)
+        else:
+            query = xapian.Query.MatchAll
 
-        # Use an Enquire object on the database to run the query
-        enquire = xapian.Enquire(self.db)
-        enquire.set_sort_by_relevance_then_value(1, False)
-        #enquire.set_sort_by_relevance()
-        enquire.set_query(query)
 
-        # And print out something about each match
+        # allow for re-open
+        retries = 2
+        while retries:
+        
+            # Use an Enquire object on the database to run the query
+            enquire = xapian.Enquire(self.db)
+            enquire.set_sort_by_relevance_then_value(1, False)
+            enquire.set_collapse_key(0)
+            #enquire.set_sort_by_relevance()
+            enquire.set_query(query)
+
+            try:
+                mset = enquire.get_mset(offset, pagesize)
+                break
+            except xapian.DatabaseModifiedError:
+                logger.debug("Database error - retrying")
+                self._db = None
+
         matches = []
-        mset = enquire.get_mset(offset, pagesize)
         for match in mset:
             doc = match.document
-            meta = json.loads(doc.get_data())
+            info = doc.get_value(1)
+            try:
+                info = decode_sortable_date(info)
+            except:
+                pass
             matches.append({
                 'rank': match.rank + 1,
                 'key': doc.get_value(0),
-                'created': decode_sortable_date(doc.get_value(1)),
-                'tags': meta.get('tag', [])
+                'info': doc.get_value(1),
+                'type': doc.get_value(2),
             })
 
         result = {
             'matches': matches,
-            'total': mset.get_matches_estimated()
+            'total': mset.get_matches_estimated(),
         }
 
+        logger.info("%r => %s [%d]", querystring, query, result['total'])
         # Finally, make sure we log the query and displayed results
+        return result
+
+    def field_cloud(self, field):
+
+
+        prefix = terms.BOOLEAN_TERMS.get(field, terms.FREE_TERMS.get(field))
+        if prefix is None:
+            raise KeyError("Unknown field: %s" % field)
+        c = len(prefix)
+
+        result = [ (x.term[c:], x.termfreq) for x in self.db.allterms(prefix) ]
+
         return result

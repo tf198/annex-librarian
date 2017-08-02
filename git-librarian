@@ -9,19 +9,20 @@ from librarian import Librarian
 
 logger = logging.getLogger(__name__)
 
-def sync(l, options):
-    return l.sync(options.commit)
+def run_sync(l, options):
+    return l.sync(options.commit, options.fresh)
 
-def search(l, options):
+def run_search(l, options):
     result = l.search(" ".join(options.terms), options.offset, options.limit)
     for r in result['matches']:
         sys.stdout.write("%r\n" % r)
     print(result['total'])
 
-def server(l, options):
+def run_server(l, options):
     from librarian.api import create_api
     from flask import Flask, send_from_directory
     from gevent.wsgi import WSGIServer
+    from librarian.watcher import FileWatcher
 
     api = create_api(l)
 
@@ -36,10 +37,15 @@ def server(l, options):
     def static_files(path):
         return send_from_directory(os.path.join(here, 'public'), path)
 
-    l.sync()
+    w = FileWatcher(l.relative_path('.git/refs/heads/git-annex'), l.sync)
+    w.start()
+    
     logger.info("Listening on %d", options.port)
     WSGIServer(('', options.port), app).serve_forever()
 
+def run_index(l, options): 
+    result = l.run_indexer(options.files, options.keys)
+    return "Indexed {indexed} of {total} files".format(**result)
 
 parser = argparse.ArgumentParser(description="Librarian for Git Annex")
 
@@ -52,7 +58,8 @@ subparsers = parser.add_subparsers();
 
 sync_cmd = subparsers.add_parser('sync', help="Synchronize library")
 sync_cmd.add_argument('-c', '--commit', help="From commit")
-sync_cmd.set_defaults(func=sync)
+sync_cmd.add_argument('-f', '--fresh', action="store_true", default=False, help="Clear current database")
+sync_cmd.set_defaults(func=run_sync)
 
 search_cmd = subparsers.add_parser('search', help="Search library")
 search_cmd.add_argument('terms', nargs="+",
@@ -61,12 +68,18 @@ search_cmd.add_argument('-o', '--offset', type=int, default=0,
         help="Offset results")
 search_cmd.add_argument('-l', '--limit', type=int, default=20,
         help="Limit results")
-search_cmd.set_defaults(func=search)
+search_cmd.set_defaults(func=run_search)
 
 server_cmd = subparsers.add_parser('server', help="Run api server")
 server_cmd.add_argument('-p', '--port', type=int, default=7920,
         help="Port to use")
-server_cmd.set_defaults(func=server)
+server_cmd.set_defaults(func=run_server)
+
+index_cmd = subparsers.add_parser('index', help="Index one or more documents")
+index_cmd.add_argument('-k', '--keys', help="Items are keys, not files")
+index_cmd.add_argument('-i', '--indexer', default="auto", help="Use a specific indexer")
+index_cmd.add_argument('files', nargs="*" ,help="Files to index")
+index_cmd.set_defaults(func=run_index)
 
 args = parser.parse_args()
 
@@ -81,7 +94,10 @@ logging.debug(args)
 
 try:
     l = Librarian(args.path)
-    args.func(l, args)
+    result = args.func(l, args)
+    if result:
+        sys.stdout.write(result)
+        sys.stdout.write("\n")
 except Exception as e:
     sys.stderr.write("Error: {0}\n".format(e))
     logging.exception(e)

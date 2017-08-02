@@ -28,3 +28,10 @@ Web interface:
 
 	git librarian server
 	# then visit http://localhost:7920
+
+TODO
+----
+
+* add whitelist for /api/cli
+* make _server_ serve multiple librarian instances
+

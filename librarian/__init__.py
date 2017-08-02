@@ -72,7 +72,7 @@ class Librarian:
         self.db = backend.XapianIndexer(os.path.join(librarian_path, 'db'))
         self.git_cmd = ('git', '-C', self.base_path);
 
-        self.indexer = Indexer('file', 'image', 'exif')
+        self.indexer = Indexer('file', 'image')
 
         self.heads = {}
     
@@ -181,6 +181,8 @@ class Librarian:
                 meta = self.indexer.index_file(f)
 
                 for f, v in meta.items():
+                    args.append('-r')
+                    args.append(f)
                     if isinstance(v, (list, tuple)):
                         for kw in v:
                             args.append('-s')

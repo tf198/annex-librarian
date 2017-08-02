@@ -57,7 +57,7 @@ class IndexerTestCase(unittest.TestCase):
         meta = i.index_file('tests/files/boat.jpg')
         self.assertDictEqual(meta, {
             'indexers': ['image'],
-            'props': ['landscape', '4:3', 'medium', 'RGB']
+            'props': ['300dpi', 'landscape', '4:3', 'medres', 'RGB']
         })
 
     def test_date_handling(self):

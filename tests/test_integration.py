@@ -4,6 +4,7 @@ import shutil
 import os, os.path
 import stat
 from librarian import Librarian
+from librarian.annex import AnnexError
 from datetime import datetime
 import subprocess
 import logging
@@ -45,7 +46,7 @@ class MockBackend:
 def create_repo(repo):
     subprocess.check_output(['git', '-C', repo, 'init'])
     subprocess.check_output(['git', '-C', repo, 'annex', 'init', 'testing'])
-    l = Librarian(repo)
+    l = Librarian(repo, progress=None)
 
     for i in range(3):
         d = os.path.join(repo, 'dir_{0}'.format(i))
@@ -53,26 +54,43 @@ def create_repo(repo):
         filename = os.path.join(d, 'test_%s.txt' % i)
         with open(filename, 'w') as f:
             f.write("Hello %d" % i)
-        l.git_raw('annex', 'add', filename)
-        l.git_raw('commit', '-m', 'Added %d' % i)
+        l.annex.git_raw('annex', 'add', filename)
+        l.annex.git_raw('commit', '-m', 'Added %d' % i)
 
     return l
 
+def clone_repo(origin, repo):
+    subprocess.check_output(['git', 'clone', origin, repo], stderr=subprocess.STDOUT)
+    subprocess.check_output(['git', '-C', repo, 'annex', 'init', 'testing'])
+    l = Librarian(repo, progress=None)
+    return l
+
+def destroy_repo(repo):
+    # annex protects itself well!
+    objects = os.path.join(repo, '.git', 'annex', 'objects')
+    if os.path.exists(objects):
+        for root, dirs, files in os.walk(objects):
+            for d in dirs: 
+                os.chmod(os.path.join(root, d), 0755)
+
+    shutil.rmtree(repo)
+
 class IntegrationTestCase(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.origin = tempfile.mkdtemp()
+        create_repo(cls.origin)
+
+    @classmethod
+    def tearDownClass(cls):
+       destroy_repo(cls.origin) 
 
     def setUp(self):
         self.repo = tempfile.mkdtemp()
 
     def tearDown(self):
-
-        # annex protects itself well!
-        objects = os.path.join(self.repo, '.git', 'annex', 'objects')
-        if os.path.exists(objects):
-            for root, dirs, files in os.walk(objects):
-                for d in dirs: 
-                    os.chmod(os.path.join(root, d), 0755)
-
-        shutil.rmtree(self.repo)
+        destroy_repo(self.repo)
 
     def test_required_paths(self):
 
@@ -107,7 +125,7 @@ class IntegrationTestCase(unittest.TestCase):
         self.assertEqual(l.sync(), head)
 
         # manually tag test_2
-        l.git_lines('annex', 'metadata', '-t', 'animals', '-t', 'cat', '-s', 'date=2001-01-01T12:00:00', 'dir_2/test_2.txt')
+        l.annex.git_lines('annex', 'metadata', '-t', 'animals', '-t', 'cat', '-s', 'date=2001-01-01T12:00:00', 'dir_2/test_2.txt')
         self.assertNotEqual(l.sync(), head)
 
         r = l.db.search('state:new')
@@ -210,6 +228,49 @@ class IntegrationTestCase(unittest.TestCase):
         l.sync()
 
         #print(l.db.items)
+
+    def test_resolve_keys(self):
+        l = clone_repo(self.origin, self.repo)
+
+        test_0 = os.path.realpath(l.relative_path('dir_0/test_0.txt'))
+        self.assertFalse(os.path.exists(test_0))
+
+        items = l.annex.resolve_keys(ALL_DOCS)
+        self.assertListEqual(items, [
+            ('SHA256E-s7--6a85a2eca1195e5201b6118281f27a581ac9c34e0caa849e40331bbbfbba3f7e.txt',
+                self.repo + '/.git/annex/objects/3W/6G/SHA256E-s7--6a85a2eca1195e5201b6118281f27a581ac9c34e0caa849e40331bbbfbba3f7e.txt/SHA256E-s7--6a85a2eca1195e5201b6118281f27a581ac9c34e0caa849e40331bbbfbba3f7e.txt'),
+            ('SHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt', 
+                self.repo + '/.git/annex/objects/9Z/jj/SHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt/SHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt'),
+            ('SHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt', 
+                self.repo + '/.git/annex/objects/Qv/k5/SHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt/SHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt')
+        ])
+
+        self.assertTrue(os.path.exists(test_0))
+
+        with self.assertRaisesRegexp(AnnexError, "Invalid key: foo"):
+            l.annex.resolve_keys(['foo'])
+
+        bad_key = 'SHA256E-s7--f31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt'
+        with self.assertRaisesRegexp(AnnexError, "Unable to locate key: " + bad_key):
+            l.annex.resolve_keys([bad_key])
+
+    def test_resolve_links(self):
+        l = clone_repo(self.origin, self.repo)
+
+        files = [ 'dir_0/test_0.txt', 'dir_1/test_1.txt']
+        test_0 = l.relative_path(files[0])
+        self.assertFalse(os.path.exists(test_0))
+
+        items = l.annex.resolve_links(files)
+        self.assertListEqual([ x[0] for x in items ], files)
+
+        self.assertTrue(os.path.exists(test_0))
+
+        with self.assertRaisesRegexp(AnnexError, "Unable to locate file: foo"):
+            l.annex.resolve_links(['foo'])
+
+        p = l.annex.resolve_link('dir_1/test_1.txt')
+        self.assertEqual(p, self.repo + "/.git/annex/objects/9Z/jj/SHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt/SHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt")
 
     def assertSearchResult(self, result, keys, sort=True):
         self.assertEqual(result['total'], len(keys))

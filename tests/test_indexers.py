@@ -19,8 +19,8 @@ class IndexerTestCase(unittest.TestCase):
             'date': meta['date'],
             'mimetype': ['text', 'plain'],
             'indexers': ['file'],
-            'extension': 'txt', 
-            'size': '0kB',
+            'extension': ['txt'], 
+            'size': ['0kB'],
         })
 
     def test_nomatch(self):
@@ -57,6 +57,8 @@ class IndexerTestCase(unittest.TestCase):
         meta = i.index_file('tests/files/boat.jpg')
         self.assertDictEqual(meta, {
             'indexers': ['image'],
+            'date': ['2009-05-09T16:18:55'],
+            'device': ['Nokia', 'E51'],
             'props': ['300dpi', 'landscape', '4:3', 'medres', 'RGB']
         })
 

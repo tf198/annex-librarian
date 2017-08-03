@@ -12,10 +12,10 @@ def file_indexer(filename, meta):
     content_type, encoding = mimetypes.guess_type(filename)
 
     meta.update({
-        'date': time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(s.st_ctime)),
-        'extension': ext[1:].lower(),
+        'date': [time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(s.st_ctime))],
+        'extension': [ext[1:].lower()],
         'mimetype': content_type.split('/'),
-        'size': "{0:d}kB".format(s.st_size/1000)
+        'size': ["{0:d}kB".format(s.st_size/1000)]
     })
 
 class Indexer(object):
@@ -70,3 +70,4 @@ class Indexer(object):
                     logger.exception("Indexing failed")
 
         return meta
+

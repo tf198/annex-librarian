@@ -1,15 +1,15 @@
 import os.path
 import logging
-import base64
 import sys
-from backends import xapian_indexer as backend
-from librarian.indexers import Indexer
-from librarian.annex import Annex
-from librarian.progress import Progress
-from backends.xapian_indexer import encode_sortable_date, decode_sortable_date
-from gevent import subprocess
-import time
 import json
+
+from backends import xapian_indexer as backend
+from indexers import Indexer
+from annex import Annex
+from progress import Progress
+from meta import parse_meta_log
+from backends.xapian_indexer import encode_sortable_date, decode_sortable_date
+#import time
 
 logger = logging.getLogger(__name__);
 
@@ -17,34 +17,6 @@ DEFAULT_CONFIG = {
     'BRANCHES': ['master'],
     'INDEXERS': ['file', 'image'],
 }
-
-def parse_meta_log(lines):
-    result = {}
-    field = None
-
-    for line in lines:
-        parts = line.split()
-
-        for token in parts[1:]:
-            if token[0] in '+-':
-                op = token[0]
-                token = token[1:]
-                if token[0] == '!':
-                    token = base64.b64decode(token[1:])
-
-                if op == '+':
-                    result[field].add(token)
-                else:
-                    try:
-                        result[field].remove(token)
-                    except KeyError:
-                        pass
-            else:
-                field = token
-                if not field in result:
-                    result[field] = set()
-
-    return { k: list(v) for k, v in result.items() if v }
 
 class Librarian:
     '''

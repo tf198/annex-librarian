@@ -66,12 +66,13 @@ class Annex:
         sout, serr = p.communicate()
 
         if p.returncode != 0:
-            sys.stderr.write("-- ERROR: %s\n" % repr(cmd))
-            sys.stderr.write("-- STDOUT\n")
-            sys.stderr.write(sout)
-            sys.stderr.write("-- STDERR\n")
-            sys.stderr.write(serr)
-            sys.stderr.write("-- END\n")
+            if logger.isEnabledFor(logging.INFO):
+                sys.stderr.write("-- ERROR: %s\n" % repr(cmd))
+                sys.stderr.write("-- STDOUT\n")
+                sys.stderr.write(sout)
+                sys.stderr.write("-- STDERR\n")
+                sys.stderr.write(serr)
+                sys.stderr.write("-- END\n")
             raise subprocess.CalledProcessError(p.returncode, " ".join(cmd), sout + serr)
 
         return sout

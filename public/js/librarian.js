@@ -226,9 +226,13 @@ function showDetail(image) {
         }
 
         $('#detail-meta').append($('<pre/>').html(meta));
-        data['git-annex']['tag'].map((tag) => {
-            var badge = $('<span class="label label-primary"></span>').html(tag);
-            tags.append(badge);
-        });
+        if (data['git-annex'] && data['git-annex']['tag']) {
+            data['git-annex']['tag'].map((tag) => {
+                var badge = $('<span class="label label-primary"></span>').html(tag);
+                tags.append(badge);
+            });
+        } else {
+            tags.html("<em>No tags</em>");
+        }
     });
 }

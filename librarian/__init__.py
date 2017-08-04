@@ -94,20 +94,20 @@ class Librarian:
         self.db.unset_writable()
         return self.get_head('git-annex')
 
-    def run_indexer(self, items, keys=False, batch=100):
+    def run_indexer(self, items, keys=False, batchsize=100):
         c = 0
         
         if not items:
             total = 0
             while True:
-                items = self.search('state:new', pagesize=batch)['matches']
+                items = self.search('state:new', pagesize=batchsize)['matches']
 
                 if len(items) == 0:
                     return {'total': total, 'indexed': c}
 
                 total += len(items)
 
-                result = self.run_indexer([ x['key'] for x in items ], True)
+                result = self.run_indexer([ x['key'] for x in items ], True, batchsize+1)
                 c += result['indexed']
             return
         
@@ -119,9 +119,9 @@ class Librarian:
 
         indexer = Indexer('file', 'image')
 
-        batch = self.annex.git_batch(['annex', 'metadata', '--json']) # doing our own json
-
         self.progress.init(len(items), 'Indexing...')
+        
+        batch = self.annex.git_batch(['annex', 'metadata', '--json']) # doing our own json
         try:
             for i, f in items:
                 payload = {'fields': indexer.index_file(f)}
@@ -135,6 +135,12 @@ class Librarian:
                     logger.error(result.get('message', "Error indexing file"))
                 self.progress.tick()
                 c += 1
+
+                if c % batchsize == 0:
+                    logger.debug("Flushing batch")
+                    batch.close()
+                    batch = self.annex.git_batch(['annex', 'metadata', '--json']) # doing our own json
+
         finally:
             batch.close()
         

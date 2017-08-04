@@ -84,6 +84,15 @@ class Annex:
         cmd = self.git_cmd + tuple(args) + extra
         return GitBatch(cmd, is_json)
 
+    def content_for_link(self, link):
+        l = self.relative_path(link)
+        if not os.path.islink(l):
+            raise AnnexError("Not an annexed file: " + link)
+        p = os.path.realpath(l)
+        if not p.startswith(self.repo):
+            raise AnnexError("Not an annexed file: " + link)
+        return p
+
     def key_for_link(self, link):
         f = os.path.realpath(self.relative_path(link))
         return os.path.basename(f)
@@ -141,8 +150,8 @@ class Annex:
         Retrieves content from remotes if required.
         Returns a list of (key, filename) tuples.
         '''
-        
-        items = [ (link, os.path.realpath(self.relative_path(link))) for link in links ]
+
+        items = [ (link, self.content_for_link(link)) for link in links ]
 
         missing = [ link for link, f in items if not os.path.exists(f) ]
 

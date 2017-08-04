@@ -267,7 +267,7 @@ class IntegrationTestCase(unittest.TestCase):
 
         self.assertTrue(os.path.exists(test_0))
 
-        with self.assertRaisesRegexp(AnnexError, "Unable to locate file: foo"):
+        with self.assertRaisesRegexp(AnnexError, "Not an annexed file: foo"):
             l.annex.resolve_links(['foo'])
 
         p = l.annex.resolve_link('dir_1/test_1.txt')

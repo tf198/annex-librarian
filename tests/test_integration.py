@@ -283,34 +283,29 @@ class IntegrationTestCase(unittest.TestCase):
     def test_branch_ops(self):
         l = clone_repo(self.origin, self.repo)
         l.sync()
-        test_1 = 'SHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt'
 
-
-        data = l.db.get_data(test_1)
+        data = l.db.get_data(DOC_KEYS['test_1'])
         self.assertDictEqual(data['paths'], {'master': 'dir_1/test_1.txt'})
 
         l.annex.git_raw('rm', 'dir_1/test_1.txt')
         l.sync()
 
         # not yet committed - still present
-        data = l.db.get_data(test_1)
+        data = l.db.get_data(DOC_KEYS['test_1'])
         self.assertDictEqual(data['paths'], {'master': 'dir_1/test_1.txt'})
 
         l.annex.git_raw('commit', '-m', 'Removed test_1')
         l.sync()
 
-        data = l.db.get_data(test_1)
+        # content still exists for key
+        data = l.db.get_data(DOC_KEYS['test_1'])
         self.assertDictEqual(data['paths'], {})
+        self.assertListEqual(data['meta']['state'], ['nometa'])
 
+        # but is not searchable
         self.assertDocTerms(l.db.db.get_document(2), [
-            'D' + now(10),
-            'Etxt',
-            'M' + now(7),
-            'QK' + test_1,
-            'XInone',
+            'QK' + DOC_KEYS['test_1'],
             'XSdropped',
-            'XSnometa',
-            'Y' + now(4),
         ])
 
     def test_unannex(self):
@@ -326,11 +321,15 @@ class IntegrationTestCase(unittest.TestCase):
        
         # branch file deleted but content still present
         data = l.db.get_data(DOC_KEYS['test_1'])
-        self.assertDictEqual(data['paths'], {})
+        self.assertEqual(data['paths'], {})
+        self.assertEqual(data['meta']['state'], ['nometa'])
 
-        data = l.db.get_data(DOC_KEYS['test_1'])
-        print data
-
+        # but is not searchable
+        doc = l.db.db.get_document(2)
+        self.assertDocTerms(doc, [
+            'QK' + DOC_KEYS['test_1'],
+            'XSdropped'
+        ])
 
 
 

@@ -121,46 +121,49 @@ class XapianIndexer:
 
         boolean_terms = set()
 
-        for field, values in data.get('meta', {}).items():
+        paths = data.get('paths')
+    
+        if paths:
+            for field, values in data.get('meta', {}).items():
 
-            if not isinstance(values, (list, tuple)):
-                values = [values]
+                if not isinstance(values, (list, tuple)):
+                    values = [values]
 
-            if field == 'date':
-                try:
-                    parts = values[0].split('T')[0].split('-')
-                    boolean_terms.add('Y{0}'.format(parts[0]))
-                    boolean_terms.add('M{0}{1}'.format(parts[0], parts[1]))
-                    boolean_terms.add('D{0}{1}{2}'.format(parts[0], parts[1], parts[2]))
+                if field == 'date':
+                    try:
+                        parts = values[0].split('T')[0].split('-')
+                        boolean_terms.add('Y{0}'.format(parts[0]))
+                        boolean_terms.add('M{0}{1}'.format(parts[0], parts[1]))
+                        boolean_terms.add('D{0}{1}{2}'.format(parts[0], parts[1], parts[2]))
+                        continue
+                    except IndexError:
+                        pass
+
+                # prepare boolean prefixed terms
+                if field in terms.BOOLEAN_TERMS:
+                    field = terms.BOOLEAN_TERMS[field]
+                    for value in values:
+                        if value: boolean_terms.add(field + value.lower())
+                elif field in terms.FREE_TERMS:
+                    field = terms.FREE_TERMS[field]
+
+                if field in terms.SKIP_FREE:
                     continue
-                except IndexError:
-                    pass
 
-            # prepare boolean prefixed terms
-            if field in terms.BOOLEAN_TERMS:
-                field = terms.BOOLEAN_TERMS[field]
                 for value in values:
-                    if value: boolean_terms.add(field + value.lower())
-            elif field in terms.FREE_TERMS:
-                field = terms.FREE_TERMS[field]
+                    for word in value.split():
+                        self.term_generator.index_text(word)
+                    self.term_generator.increase_termpos()
 
-            if field in terms.SKIP_FREE:
-                continue
+            for branch, link in paths.items():
+                boolean_terms.add('B{0}'.format(branch.lower()))
+                p, _ = os.path.splitext(link)
+                for t in p.split(os.sep):
+                    boolean_terms.add('P{0}'.format(t.lower()))
 
-            for value in values:
-                for word in value.split():
-                    self.term_generator.index_text(word)
-                self.term_generator.increase_termpos()
-
-        paths = data.get('paths', {})
-        for branch, link in paths.items():
-            boolean_terms.add('B{0}'.format(branch.lower()))
-            p, _ = os.path.splitext(link)
-            for t in p.split(os.sep):
-                boolean_terms.add('P{0}'.format(t.lower()))
-
-        state = 'ok' if paths else 'dropped'
-        boolean_terms.add('XS{0}'.format(state))
+            boolean_terms.add('XSok')
+        else:
+            boolean_terms.add('XSdropped')
 
         # add the boolean terms after the 
         for t in boolean_terms:

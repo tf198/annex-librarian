@@ -44,7 +44,7 @@ def run_server(l, options):
     w = FileWatcher(l.relative_path('.git/refs/heads/git-annex'), l.sync)
     w.start()
     
-    logger.info("Listening on %d", options.port)
+    sys.stderr.write("Listening on %d\n" % options.port)
     WSGIServer(('', options.port), app).serve_forever()
 
 def run_index(l, options): 

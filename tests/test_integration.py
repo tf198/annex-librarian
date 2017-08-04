@@ -135,7 +135,7 @@ class IntegrationTestCase(unittest.TestCase):
         r = l.search('tag:animals')
         self.assertEqual(r['total'], 1)
         match = r['matches'][0]
-        self.assertEqual(match['info'], '2001-01-01T12:00:00')
+        self.assertEqual(match['date'], '2001-01-01T12:00:00')
         self.assertEqual(match['key'], 
                 'SHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt')
 

@@ -224,8 +224,7 @@ class XapianIndexer:
             matches.append({
                 'rank': match.rank + 1,
                 'key': doc.get_value(0),
-                'info': decode_sortable_date(doc.get_value(1)),
-                'type': doc.get_value(2),
+                'date': decode_sortable_date(doc.get_value(1)),
             })
 
         result = {

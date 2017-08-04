@@ -113,7 +113,7 @@ function displayImages(images) {
     images.map((image) => {
 
         var preview = $('<div class="preview"/>');
-        preview.attr('title', image.info || "unknown");
+        preview.attr('title', image.date || "unknown");
         preview.attr('id', image.key);
         preview.css('background-image', 'url("/api/thumb/' + image.key + '")');
         

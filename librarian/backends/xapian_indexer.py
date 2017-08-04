@@ -87,63 +87,79 @@ class XapianIndexer:
     def set_value(self, key, value):
         return self.db.set_metadata(key, value)
 
-    def update(self, key, meta, doctype, idterm=None, sortvalue=None):
-        #try:
-        #    date = encode_sortable_date(meta['date'][0]);
-        #except KeyError:
-        #    date = encode_sortable_date('');
+    def update_data(self, key, section, info):
 
-        logger.debug("%r", meta)
+        try:
+            data = self.get_data(key)
+        except KeyError:
+            data = {}
+
+        # dont re-index if no changes
+        if data.get(section, {}) == info:
+            logger.debug("No changes")
+            return
+        
+        data[section] = info
+        self.put_data(key, data)
+
+    def put_data(self, key, data):
+
+        try:
+            sortvalue = encode_sortable_date(data['git-annex']['date'][0]);
+        except KeyError:
+            sortvalue = encode_sortable_date('');
+
+        logger.debug("%r", data)
 
         doc = xapian.Document()
         self.term_generator.set_document(doc)
 
-        boolean_terms = []
+        boolean_terms = set()
 
-        for field, values in meta.items():
+        for section, info in data.items():
+            if section[0] == '_': continue
 
-            if not isinstance(values, (list, tuple)):
-                values = [values]
+            boolean_terms.add('B{0}'.format(section))
+            for field, values in info.items():
 
-            if field == 'date':
-                try:
-                    parts = values[0].split('T')[0].split('-')
-                    boolean_terms.append('Y{0}'.format(parts[0]))
-                    boolean_terms.append('M{0}{1}'.format(parts[0], parts[1]))
-                    boolean_terms.append('D{0}{1}{2}'.format(parts[0], parts[1], parts[2]))
+                if not isinstance(values, (list, tuple)):
+                    values = [values]
+
+                if field == 'date':
+                    try:
+                        parts = values[0].split('T')[0].split('-')
+                        boolean_terms.add('Y{0}'.format(parts[0]))
+                        boolean_terms.add('M{0}{1}'.format(parts[0], parts[1]))
+                        boolean_terms.add('D{0}{1}{2}'.format(parts[0], parts[1], parts[2]))
+                        continue
+                    except IndexError:
+                        pass
+
+                # prepare boolean prefixed terms
+                if field in terms.BOOLEAN_TERMS:
+                    field = terms.BOOLEAN_TERMS[field]
+                    for value in values:
+                        if value: boolean_terms.add(field + value.lower())
+                elif field in terms.FREE_TERMS:
+                    field = terms.FREE_TERMS[field]
+
+                if field in terms.SKIP_FREE:
                     continue
-                except IndexError:
-                    pass
 
-            # prepare boolean prefixed terms
-            if field in terms.BOOLEAN_TERMS:
-                field = terms.BOOLEAN_TERMS[field]
                 for value in values:
-                    if value: boolean_terms.append(field + value.lower())
-            elif field in terms.FREE_TERMS:
-                field = terms.FREE_TERMS[field]
-
-            if field in terms.SKIP_FREE:
-                continue
-
-            for value in values:
-                for word in value.split():
-                    self.term_generator.index_text(word)
-                self.term_generator.increase_termpos()
+                    for word in value.split():
+                        self.term_generator.index_text(word)
+                    self.term_generator.increase_termpos()
 
         # add the boolean terms after the 
         for t in boolean_terms:
             doc.add_boolean_term(t)
 
-        doc.set_data(json.dumps(meta))
+        doc.set_data(json.dumps(data))
         doc.add_value(0, key)
         doc.add_value(1, sortvalue)
-        doc.add_value(2, doctype)
 
-        if idterm is None:
-            idterm = key
-
-        idterm = "Q{0}{1}".format(doctype, idterm)
+        idterm = "QK{0}".format(key)
         doc.add_boolean_term(idterm)
 
         #print([ x.term for x in doc.termlist() ])
@@ -156,10 +172,10 @@ class XapianIndexer:
         matches = list(self.db.postlist(term))
         if len(matches) > 1: raise KeyError("Key is not unique!");
         if len(matches) == 0: raise KeyError("Key not found");
-        
+
         docid = matches[0].docid
         data = json.loads(self.db.get_document(docid).get_data())
-        data['docid'] = docid
+        data['_docid'] = docid
         return data
 
     def alldocs(self, offset=0, pagesize=10):
@@ -179,19 +195,6 @@ class XapianIndexer:
     def search(self, querystring, offset=0, pagesize=10):
 
         if querystring:
-            #queryparser = xapian.QueryParser()
-            #queryparser.set
-        
-            # Start of prefix configuration.
-
-            #for field, prefix in terms.FREE_PREFIXES:
-            #    queryparser.add_prefix(field, prefix)
-            #for field, prefix in terms.BOOLEAN_PREFIXES:
-            #    queryparser.add_boolean_prefix(field, prefix)
-            # End of prefix configuration.
-
-            # And parse the query
-            logger.debug("Query string: %s", querystring)
             query = self.query_parser.parse_query(querystring,
                     xapian.QueryParser.FLAG_PURE_NOT | xapian.QueryParser.FLAG_WILDCARD | xapian.QueryParser.FLAG_BOOLEAN | xapian.QueryParser.FLAG_LOVEHATE)
         else:
@@ -206,7 +209,6 @@ class XapianIndexer:
             enquire = xapian.Enquire(self.db)
             enquire.set_sort_by_relevance_then_value(1, False)
             enquire.set_collapse_key(0)
-            #enquire.set_sort_by_relevance()
             enquire.set_query(query)
 
             try:
@@ -219,15 +221,10 @@ class XapianIndexer:
         matches = []
         for match in mset:
             doc = match.document
-            info = doc.get_value(1)
-            try:
-                info = decode_sortable_date(info)
-            except:
-                pass
             matches.append({
                 'rank': match.rank + 1,
                 'key': doc.get_value(0),
-                'info': doc.get_value(1),
+                'info': decode_sortable_date(doc.get_value(1)),
                 'type': doc.get_value(2),
             })
 

@@ -8,6 +8,16 @@ class IndexerTestCase(unittest.TestCase):
         i = Indexer()
         self.assertEqual(i._indexers, {})
 
+    def test_add(self):
+        i = Indexer()
+        i.add_indexer('foo', 1, ['.foo'])
+        self.assertDictEqual(i._indexers, {'foo': 1})
+        self.assertListEqual(i._extensions, [('.foo', 'foo')])
+
+        i.add_indexer('foo', 2, ['.bar'])
+        self.assertDictEqual(i._indexers, {'foo': 1})
+        self.assertListEqual(i._extensions, [('.foo', 'foo')])
+
     def test_file(self):
         i = Indexer('file')
 

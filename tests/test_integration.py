@@ -112,13 +112,14 @@ class IntegrationTestCase(unittest.TestCase):
 
         self.assertSearchResult(l.search('state:new'), ALL_DOCS, True)
 
-        meta = l.db.get_data('SHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt')
+        data = l.db.get_data('SHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt')
+        self.assertEqual(data['_docid'], 3)
+        meta = data['git-annex']
         self.assertDictEqual(meta, {
             'indexers': ['none'],
             'date': meta['date'],
             'state': ['new'],
             'extension': ['txt'],
-            'docid': 3,
         });
         self.assertEqual(meta['date'][0][:10], NOW[:10])
 
@@ -138,37 +139,39 @@ class IntegrationTestCase(unittest.TestCase):
         self.assertEqual(match['key'], 
                 'SHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt')
 
-        meta = l.db.get_data('SHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt')
-        self.assertDictEqual(meta, {
+        data = l.db.get_data('SHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt')
+        self.assertEqual(data['_docid'], 3)
+        self.assertDictEqual(data['git-annex'], {
             'indexers': ['none'],
-            'docid': 3,
             'extension': ['txt'],
             'state': ['tagged'],
             'tag': ['animals', 'cat'],
-            'date': ['2001-01-01T12:00:00']
+            'date': ['2001-01-01T12:00:00'],
         });
-
         r = l.run_indexer(ALL_DOCS[:2], True) # test_0 and test_1
         self.assertEqual(r['indexed'], 2)
         self.assertEqual(r['total'], 2)
 
         self.assertSearchResult(l.db.search('state:new'), [])
 
+        #print([ t.term for t in l.db.db.get_document(2).termlist() ])
+
         r = l.db.search('path:dir_1')
         self.assertEqual(r['total'], 1)
         self.assertEqual(r['matches'][0]['key'], 
                 'SHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt')
-        self.assertEqual(r['matches'][0]['info'][:10], 'test_1.txt')
+        #self.assertEqual(r['matches'][0]['info'][:10], 'test_1.txt')
 
-        meta = l.db.get_data('SHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt')
+        data = l.db.get_data('SHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt')
+        self.assertEqual(data['_docid'], 2)
+        meta = data['git-annex']
         self.assertDictEqual(meta, {
             'date': meta['date'],
-            'docid': 2,
             'extension': ['txt'],
             'indexers': ['file'],
             'mimetype': ['plain', 'text'],
             'size': ['0kB'],
-            'state': ['untagged'],
+            'state': ['untagged']
         })
         self.assertEqual(meta['date'][0][:10], NOW[:10])
 
@@ -176,9 +179,13 @@ class IntegrationTestCase(unittest.TestCase):
 
         # check the terms generated for test_1
         self.assertDocTerms(l.db.db.get_document(2), [
+            'Bgit-annex',
+            'Bmaster',
             'D' + NOW[:10].replace('-', ''),
             'Etxt',
             'M' + NOW[:7].replace('-', ''),
+            'Pdir_1',
+            'Ptest_1',
             'QKSHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt',
             'Tplain', 'Ttext',
             'XIfile',
@@ -189,11 +196,15 @@ class IntegrationTestCase(unittest.TestCase):
 
         # check the terms generated for test_3
         self.assertDocTerms(l.db.db.get_document(3), [
+            'Bgit-annex',
+            'Bmaster',
             'D20010101',
             'Etxt',
             'Kanimals',
             'Kcat',
             'M200101',
+            'Pdir_2',
+            'Ptest_2',
             'QKSHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt',
             'XInone',
             'XStagged',
@@ -202,16 +213,6 @@ class IntegrationTestCase(unittest.TestCase):
             'Zcat',
             'animals',
             'cat',
-        ])
-
-        # check the terms for the master listing
-        self.assertDocTerms(l.db.db.get_document(4), [
-            'D' + NOW[:10].replace('-', ''),
-            'Etxt',
-            'M' + NOW[:7].replace('-', ''),
-            'Pdir_0', 'Ptest_0',
-            'QFmaster:dir_0/test_0.txt',
-            'Y' + NOW[:4]
         ])
 
         self.assertSearchResult(l.db.search('animal'),

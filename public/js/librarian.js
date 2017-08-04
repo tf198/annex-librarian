@@ -212,14 +212,21 @@ function showDetail(image) {
     }).then((data) => {
         var meta = ""
         console.log(data)
-        for (var k in data) {
-            var v = data[k]
-            if (Array.isArray(v)) v = v.join(", ")
-            meta += "<strong>" + k + ":</strong> " + v + "\n";
+        for (var s in data) {
+            meta += "<strong>" + s + ":</strong>\n";
+            if (typeof(data[s]) == 'object') {
+                for (var k in data[s]) {
+                    var v = data[s][k]
+                    if (Array.isArray(v)) v = v.join(", ")
+                    meta += "  <em>" + k + ":</em> " + v + "\n";
+                }
+            } else {
+                meta += "  " + data[s] + "\n";
+            }
         }
 
         $('#detail-meta').append($('<pre/>').html(meta));
-        data['tag'].map((tag) => {
+        data['git-annex']['tag'].map((tag) => {
             var badge = $('<span class="label label-primary"></span>').html(tag);
             tags.append(badge);
         });

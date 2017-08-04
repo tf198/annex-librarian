@@ -83,7 +83,11 @@ class Annex:
         extra = ('--json', '--batch') if is_json else ('--batch', )
         cmd = self.git_cmd + tuple(args) + extra
         return GitBatch(cmd, is_json)
-    
+
+    def key_for_link(self, link):
+        f = os.path.realpath(self.relative_path(link))
+        return os.path.basename(f)
+
     def resolve_key(self, key):
         '''
         Convert key to annexed file path.
@@ -129,7 +133,6 @@ class Annex:
             except subprocess.CalledProcessError:
                 raise AnnexError("Failed to retrieve file: " + link)
 
-        _, key = os.path.split(p)
         return p
 
     def resolve_links(self, links, tick=noop):

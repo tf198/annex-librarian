@@ -2,14 +2,13 @@ import os.path
 import logging
 import sys
 import json
+from gevent import subprocess
 
 from backends import xapian_indexer as backend
 from indexers import Indexer
 from annex import Annex
 from progress import Progress
 from meta import parse_meta_log
-from backends.xapian_indexer import encode_sortable_date, decode_sortable_date
-#import time
 
 logger = logging.getLogger(__name__);
 
@@ -67,22 +66,30 @@ class Librarian:
             if filename == 'uuid.log':
                 continue
 
+            meta = None
+
             if filename.endswith('.log.met'):
                 key = filename[:-8]
                 _, ext = os.path.splitext(key)
                 stat['ext'] = ext[1:]
-                self._process_meta_log(key, stat)
+                meta = self._process_meta_log(key, stat)
 
             if filename.endswith('.log'):
                 key = filename[:-4]
                 _, ext = os.path.splitext(key)
                 stat['ext'] = ext[1:]
-                self._process_log(key, stat)
+                meta = self._process_log(key, stat)
+
+            if meta is not None:
+                self.db.update_data(key, 'git-annex', meta)
         
         for branch in self.config['BRANCHES']:
             for filename, stat in self.file_modifications('master', start):
-                self._process_branch_file('master', filename, stat) 
-            
+                key = self.annex.key_for_link(filename)
+                info = self._process_branch_file('master', filename, stat)
+
+                if info is not None:
+                    self.db.update_data(key, branch, info)
 
         self.db.unset_writable()
         return self.get_head('git-annex')
@@ -175,7 +182,7 @@ class Librarian:
             if update_head:
                 self.set_head(branch, commit)
 
-            self.progress.tick(commit)
+            self.progress.tick(commit[:8])
 
     def _process_meta_log(self, key, stat):
         logger.debug("Metafile: %s", key)
@@ -190,7 +197,8 @@ class Librarian:
         if not meta.get('date'):
             meta['date'] = [stat['date'][:19]]
 
-        self.db.update(key, meta, 'K', key, encode_sortable_date(meta.get('date', [None])[0]))
+        #self.db.update(key, meta, 'K', key, encode_sortable_date(meta.get('date', [None])[0]))
+        return meta
 
     def _process_log(self, key, stat):
         logger.debug("Logfile: %s", key)
@@ -202,7 +210,10 @@ class Librarian:
                 'date': [stat['date'][:19]],
                 'extension': [stat['ext']],
             }
-            self.db.update(key, meta, 'K', key, encode_sortable_date(meta.get('date', [None])[0]))
+            #self.db.update(key, meta, 'K', key, encode_sortable_date(meta.get('date', [None])[0]))
+            return meta
+
+        return None
 
     def _process_branch_file(self, branch, filename, stat):
 
@@ -218,21 +229,17 @@ class Librarian:
 
             info = {
                 'path': p,
-                'date': [stat['date'][:19]],
+                #'date': [stat['date'][:19]],
                 'extension': [e[1:]],
             }
             logger.debug("%s: %r", filename, info)
 
-            self.db.update(key, info, 'F', "{0}:{1}".format(branch, filename), c)
+            #self.db.update(key, info, 'F', "{0}:{1}".format(branch, filename), c)
+            return info
 
 
     def search(self, terms, offset=0, pagesize=20):
-        result = self.db.search(terms, offset, pagesize)
-        
-        for match in result['matches']:
-            if match['type'] == 'K':
-                match['info'] = decode_sortable_date(match['info'])
-        return result
+        return self.db.search(terms, offset, pagesize)
 
     def alldocs(self, offset=0, pagesize=20):
         return self.db.alldocs(offset, pagesize)
@@ -240,13 +247,14 @@ class Librarian:
     def get_meta(self, key):
         return self.db.get_data(key)
 
+
     def thumb_for_key(self, key):
         filepath = os.path.join(self.cache_dir, key + "-thumb.jpg");
 
         if os.path.exists(filepath):
             return filepath
 
-        original = self.file_for_key(key)
+        original = self.annex.resolve_key(key)
         subprocess.check_call([
             'convert', 
             '-format', 'jpg', 
@@ -266,7 +274,7 @@ class Librarian:
         if os.path.exists(filepath):
             return filepath
 
-        original = self.file_for_key(key)
+        original = self.annex.resolve_key(key)
         subprocess.check_call([
             'convert', 
             '-format', 'jpg', 

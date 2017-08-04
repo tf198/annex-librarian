@@ -27,9 +27,6 @@ class Indexer(object):
         for e in enable:
             getattr(self, 'enable_%s' % e)()
 
-    def enable(self, name):
-        pass # TODO
-
     def enable_image(self):
         from librarian.indexers.image import image_indexer
         self.add_indexer('image', image_indexer, ['.jpg', '.tif', '.png', '.gif'])

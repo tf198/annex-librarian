@@ -1,7 +1,9 @@
 
-SCHEMA_VERSION = '0.1'
+SCHEMA_VERSION = '0.2'
 
 BOOLEAN_PREFIXES = (
+    ('topic', 'B'),
+    ('branch', 'B'),
     ('extension', 'E'),
     ('ext', 'E'),
     ('include', 'I'),
@@ -28,7 +30,6 @@ BOOLEAN_PREFIXES = (
 
 FREE_PREFIXES = (
     ('author', 'A'),
-    ('topic', 'B'), # aBout
     ('date', 'D'),
     ('filename', 'F'),
     ('raw', 'R'),

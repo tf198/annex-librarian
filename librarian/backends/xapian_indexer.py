@@ -2,6 +2,7 @@ import xapian
 import time
 import logging
 import json
+import os
 from librarian.backends import terms
 
 logger = logging.getLogger(__name__)
@@ -109,7 +110,7 @@ class XapianIndexer:
     def put_data(self, key, data):
 
         try:
-            sortvalue = encode_sortable_date(data['git-annex']['date'][0]);
+            sortvalue = encode_sortable_date(data['meta']['date'][0]);
         except KeyError:
             sortvalue = encode_sortable_date('');
 
@@ -120,40 +121,46 @@ class XapianIndexer:
 
         boolean_terms = set()
 
-        for section, info in data.items():
-            if section[0] == '_': continue
+        for field, values in data.get('meta', {}).items():
 
-            boolean_terms.add('B{0}'.format(section))
-            for field, values in info.items():
+            if not isinstance(values, (list, tuple)):
+                values = [values]
 
-                if not isinstance(values, (list, tuple)):
-                    values = [values]
-
-                if field == 'date':
-                    try:
-                        parts = values[0].split('T')[0].split('-')
-                        boolean_terms.add('Y{0}'.format(parts[0]))
-                        boolean_terms.add('M{0}{1}'.format(parts[0], parts[1]))
-                        boolean_terms.add('D{0}{1}{2}'.format(parts[0], parts[1], parts[2]))
-                        continue
-                    except IndexError:
-                        pass
-
-                # prepare boolean prefixed terms
-                if field in terms.BOOLEAN_TERMS:
-                    field = terms.BOOLEAN_TERMS[field]
-                    for value in values:
-                        if value: boolean_terms.add(field + value.lower())
-                elif field in terms.FREE_TERMS:
-                    field = terms.FREE_TERMS[field]
-
-                if field in terms.SKIP_FREE:
+            if field == 'date':
+                try:
+                    parts = values[0].split('T')[0].split('-')
+                    boolean_terms.add('Y{0}'.format(parts[0]))
+                    boolean_terms.add('M{0}{1}'.format(parts[0], parts[1]))
+                    boolean_terms.add('D{0}{1}{2}'.format(parts[0], parts[1], parts[2]))
                     continue
+                except IndexError:
+                    pass
 
+            # prepare boolean prefixed terms
+            if field in terms.BOOLEAN_TERMS:
+                field = terms.BOOLEAN_TERMS[field]
                 for value in values:
-                    for word in value.split():
-                        self.term_generator.index_text(word)
-                    self.term_generator.increase_termpos()
+                    if value: boolean_terms.add(field + value.lower())
+            elif field in terms.FREE_TERMS:
+                field = terms.FREE_TERMS[field]
+
+            if field in terms.SKIP_FREE:
+                continue
+
+            for value in values:
+                for word in value.split():
+                    self.term_generator.index_text(word)
+                self.term_generator.increase_termpos()
+
+        paths = data.get('paths', {})
+        for branch, link in paths.items():
+            boolean_terms.add('B{0}'.format(branch.lower()))
+            p, _ = os.path.splitext(link)
+            for t in p.split(os.sep):
+                boolean_terms.add('P{0}'.format(t.lower()))
+
+        state = 'ok' if paths else 'dropped'
+        boolean_terms.add('XS{0}'.format(state))
 
         # add the boolean terms after the 
         for t in boolean_terms:

@@ -81,17 +81,34 @@ class Librarian:
                 meta = self._process_log(key, stat)
 
             if meta is not None:
-                self.db.update_data(key, 'git-annex', meta)
+                data = self._get_current(key)
+                
+                if data.get('meta', {}) != meta:
+                    data['meta'] = meta
+                    self.db.put_data(key, data)
         
         for branch in self.config['BRANCHES']:
             for filename, stat in self.file_modifications('master', start):
-                key, info = self._process_branch_file('master', filename, stat)
+                key, p = self._process_branch_file('master', filename, stat)
 
-                if info is not None:
-                    self.db.update_data(key, branch, info)
+                if p is not None:
+                    data = self._get_current(key)
+                    paths = data.setdefault('paths', {})
+                    if paths.get(branch) != p:
+                        if p:
+                            paths[branch] = p
+                        else:
+                            del(paths[branch])
+                    self.db.put_data(key, data)
 
         self.db.unset_writable()
         return self.get_head('git-annex')
+
+    def _get_current(self, key):
+        try:
+            return self.db.get_data(key)
+        except KeyError:
+            return {}
 
     def run_indexer(self, items, keys=False, batchsize=100):
         c = 0
@@ -190,33 +207,36 @@ class Librarian:
             self.progress.tick(commit[:8])
 
     def _process_meta_log(self, key, stat):
-        logger.debug("Metafile: %s", key)
+        if stat['action'] == 'D':
+            logger.warning("Deleted meta for %s", key)
+            return
+
+        #logger.debug("Metafile: %s", key)
 
         meta = parse_meta_log(self.annex.git_lines('cat-file', 'blob', stat['blob']))
         
         meta['state'] = ['tagged'] if len(meta.get('tag', [])) > 0 else ['untagged']
         meta['extension'] = [stat['ext']]
-        if meta.get('indexers', []) == []:
-            meta['indexers'] = ['none']
+        meta.setdefault('indexers', ['none'])
+        meta.setdefault('date', [stat['date'][:19]])
 
-        if not meta.get('date'):
-            meta['date'] = [stat['date'][:19]]
-
-        #self.db.update(key, meta, 'K', key, encode_sortable_date(meta.get('date', [None])[0]))
         return meta
 
     def _process_log(self, key, stat):
-        logger.debug("Logfile: %s", key)
+
+        #logger.debug("Logfile: %s [%d]", key, stat['action'])
 
         if stat['action'] == 'A':
             meta = {
-                'state': ['new'],
+                'state': ['nometa'],
                 'indexers': ['none'],
                 'date': [stat['date'][:19]],
                 'extension': [stat['ext']],
             }
-            #self.db.update(key, meta, 'K', key, encode_sortable_date(meta.get('date', [None])[0]))
             return meta
+
+        if stat['action'] == 'D':
+            logger.warning("Deleted logfile for %s:", key)
 
         return None
 
@@ -224,7 +244,7 @@ class Librarian:
 
         if stat['mode'] == "120000" and stat['action'] == 'A':
             key = self.annex.key_for_link(filename)
-
+            return key, filename
             b, c = os.path.split(filename)
             f, e = os.path.splitext(c)
 
@@ -241,9 +261,10 @@ class Librarian:
             return key, info
 
         if stat['_mode'] == ':120000' and stat['action'] == 'D':
+            logger.debug("Deleted branch file: %s", filename)
             key = os.path.basename(self.annex.git_line('cat-file', 'blob', stat['parent']))
 
-            return key, {}
+            return key, ''
 
 
     def search(self, terms, offset=0, pagesize=20):

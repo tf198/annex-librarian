@@ -22,7 +22,7 @@ class Progress:
             message = ": OK"
 
         p = float(step) / total
-        self.stream.write('\r[{0:30s}] {1}/{2} {3:30s}'.format('#'*int(p*30), step, total, message))
+        self.stream.write('\r[{0:30s}] {1}/{2} {3:30s}'.format('#'*int(p*30), step, total, message[:30]))
         if step == total:
             self.stream.write("\n")
 

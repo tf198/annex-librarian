@@ -165,7 +165,7 @@ class Annex:
                 if not result:
                     e = AnnexError("Unable to locate file: " + link)
                     break
-                tick(link)
+                tick(os.path.basename(link))
             batch.close()
             if e: raise e
 

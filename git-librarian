@@ -4,6 +4,7 @@ import argparse
 import sys
 import logging
 import os.path
+import json
 
 from librarian import Librarian
 
@@ -15,8 +16,11 @@ def run_sync(l, options):
 def run_search(l, options):
     result = l.search(" ".join(options.terms), options.offset, options.limit)
     for r in result['matches']:
-        sys.stdout.write("%r\n" % r)
-    print(result['total'])
+        if options.json:
+            sys.stdout.write(json.dumps(r))
+            sys.stdout.write("\n")
+        else:
+            sys.stdout.write("%s\n" % r['key'])
 
 def run_server(l, options):
     from librarian.api import create_api
@@ -47,27 +51,32 @@ def run_index(l, options):
     result = l.run_indexer(options.files, options.keys)
     return "Indexed {indexed} of {total} files".format(**result)
 
-parser = argparse.ArgumentParser(description="Librarian for Git Annex")
+parser = argparse.ArgumentParser(description="Curator for your annexed data")
 
 parser.add_argument('-C', default='.', dest="path", 
         help="Run as if git was started in <PATH>")
 parser.add_argument('-l', dest="logging",
-        help="Logging string")
+        help="Logging string (format: name:level, default: none)")
 
 subparsers = parser.add_subparsers();
 
-sync_cmd = subparsers.add_parser('sync', help="Synchronize library")
+sync_cmd = subparsers.add_parser('sync', help="Synchronize library",
+        description="Read all new commits and index data")
 sync_cmd.add_argument('-c', '--commit', help="From commit")
-sync_cmd.add_argument('-f', '--fresh', action="store_true", default=False, help="Clear current database")
+sync_cmd.add_argument('-f', '--fresh', action="store_true", default=False, 
+        help="Clear current database and start from scratch")
 sync_cmd.set_defaults(func=run_sync)
 
-search_cmd = subparsers.add_parser('search', help="Search library")
+search_cmd = subparsers.add_parser('search', help="Search library",
+        description="Output a list keys which match the search terms")
 search_cmd.add_argument('terms', nargs="+",
         help="Search terms")
 search_cmd.add_argument('-o', '--offset', type=int, default=0,
         help="Offset results")
 search_cmd.add_argument('-l', '--limit', type=int, default=20,
         help="Limit results")
+search_cmd.add_argument('--json', action="store_true",
+        help="Output one JSON object per line with key, date and rank properties")
 search_cmd.set_defaults(func=run_search)
 
 server_cmd = subparsers.add_parser('server', help="Run api server")
@@ -75,7 +84,8 @@ server_cmd.add_argument('-p', '--port', type=int, default=7920,
         help="Port to use")
 server_cmd.set_defaults(func=run_server)
 
-index_cmd = subparsers.add_parser('index', help="Index one or more documents")
+index_cmd = subparsers.add_parser('index', help="Index one or more documents",
+        description="Run all configured indexers on the files specified")
 index_cmd.add_argument('-k', '--keys', help="Items are keys, not files")
 index_cmd.add_argument('-i', '--indexer', default="auto", help="Use a specific indexer")
 index_cmd.add_argument('files', nargs="*" ,help="Files to index")

@@ -19,6 +19,9 @@ ALL_DOCS = [
 
 NOW = datetime.now().isoformat()[:19]
 
+def now(chars):
+    return NOW[:chars].replace('-', '')
+
 class MockBackend:
 
     def __init__(self):
@@ -272,6 +275,43 @@ class IntegrationTestCase(unittest.TestCase):
 
         p = l.annex.resolve_link('dir_1/test_1.txt')
         self.assertEqual(p, self.repo + "/.git/annex/objects/9Z/jj/SHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt/SHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt")
+
+    def test_branch_ops(self):
+        l = clone_repo(self.origin, self.repo)
+        l.sync()
+        test_1 = 'SHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt'
+
+
+        data = l.db.get_data(test_1)
+        self.assertListEqual(sorted(data.keys()), ['_docid', 'git-annex', 'master'])
+        self.assertListEqual(data['master']['path'], ['dir_1', 'test_1'])
+
+        l.annex.git_raw('rm', 'dir_1/test_1.txt')
+        l.sync()
+
+        # not yet committed - still present
+        data = l.db.get_data(test_1)
+        self.assertListEqual(sorted(data.keys()), ['_docid', 'git-annex', 'master'])
+        self.assertListEqual(data['master']['path'], ['dir_1', 'test_1'])
+
+        l.annex.git_raw('commit', '-m', 'Removed test_1')
+        l.sync()
+
+        data = l.db.get_data(test_1)
+        self.assertListEqual(sorted(data.keys()), ['_docid', 'git-annex'])
+
+        self.assertDocTerms(l.db.db.get_document(2), [
+            'Bgit-annex',
+            'D' + now(10),
+            'Etxt',
+            'M' + now(7),
+            'QK' + test_1,
+            'XInone',
+            'XSnew',
+            'Y' + now(4),
+        ])
+
+
 
     def assertSearchResult(self, result, keys, sort=True):
         self.assertEqual(result['total'], len(keys))

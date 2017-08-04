@@ -98,8 +98,12 @@ class XapianIndexer:
         if data.get(section, {}) == info:
             logger.debug("No changes")
             return
-        
-        data[section] = info
+
+        if info:
+            data[section] = info
+        else:
+            del(data[section])
+
         self.put_data(key, data)
 
     def put_data(self, key, data):

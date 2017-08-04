@@ -85,8 +85,7 @@ class Librarian:
         
         for branch in self.config['BRANCHES']:
             for filename, stat in self.file_modifications('master', start):
-                key = self.annex.key_for_link(filename)
-                info = self._process_branch_file('master', filename, stat)
+                key, info = self._process_branch_file('master', filename, stat)
 
                 if info is not None:
                     self.db.update_data(key, branch, info)
@@ -223,9 +222,8 @@ class Librarian:
 
     def _process_branch_file(self, branch, filename, stat):
 
-        if stat['mode'] == "120000":
-            content = os.path.realpath(self.relative_path(filename))
-            key = os.path.basename(content)
+        if stat['mode'] == "120000" and stat['action'] == 'A':
+            key = self.annex.key_for_link(filename)
 
             b, c = os.path.split(filename)
             f, e = os.path.splitext(c)
@@ -240,8 +238,12 @@ class Librarian:
             }
             logger.debug("%s: %r", filename, info)
 
-            #self.db.update(key, info, 'F', "{0}:{1}".format(branch, filename), c)
-            return info
+            return key, info
+
+        if stat['_mode'] == ':120000' and stat['action'] == 'D':
+            key = os.path.basename(self.annex.git_line('cat-file', 'blob', stat['parent']))
+
+            return key, {}
 
 
     def search(self, terms, offset=0, pagesize=20):

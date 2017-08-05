@@ -24,7 +24,7 @@ def run_search(l, options):
 
 def run_server(l, options):
     from librarian.api import create_api
-    from flask import Flask, send_from_directory
+    from flask import Flask, send_from_directory, redirect
     from gevent.wsgi import WSGIServer
     from librarian.watcher import FileWatcher
 
@@ -40,6 +40,10 @@ def run_server(l, options):
     @app.route('/public/', defaults={'path': 'index.html'})
     def static_files(path):
         return send_from_directory(os.path.join(here, 'public'), path)
+
+    @app.route('/')
+    def redirect_home():
+        return redirect('/public/')
 
     w = FileWatcher(l.relative_path('.git/refs/heads/git-annex'), l.sync)
     w.start()

@@ -194,17 +194,8 @@ class XapianIndexer:
 
     def alldocs(self, offset=0, pagesize=10):
 
-        return self.search(None, offset, pagesize)
+        return self.search("state:ok", offset, pagesize)
 
-        items = self.db.allterms('QK')
-
-        matches = [ {'key': i.term[2:]} for i in items ]
-        total = len(matches)
-
-        if offset: matches = matches[offset:]
-        if pagesize: matches = matches[:pagesize]
-        
-        return {'total': total, 'matches': matches} 
 
     def search(self, querystring, offset=0, pagesize=10):
 

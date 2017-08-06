@@ -245,20 +245,6 @@ class Librarian:
         if stat['mode'] == "120000" and stat['action'] == 'A':
             key = self.annex.key_for_link(filename)
             return key, filename
-            b, c = os.path.split(filename)
-            f, e = os.path.splitext(c)
-
-            p = b.split(os.sep) if b else []
-            p.append(f)
-
-            info = {
-                'path': p,
-                #'date': [stat['date'][:19]],
-                'extension': [e[1:]],
-            }
-            logger.debug("%s: %r", filename, info)
-
-            return key, info
 
         if stat['_mode'] == ':120000' and stat['action'] == 'D':
             logger.debug("Deleted branch file: %s", filename)

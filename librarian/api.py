@@ -73,7 +73,7 @@ def create_api(librarian):
 
     @api.route('/data/<string:key>')
     def get_data(key):
-        data = librarian.get_meta(key)
+        data = librarian.get_data(key)
         return jsonify(data)
 
     @api.route('/cli', methods=['POST'])
@@ -91,7 +91,8 @@ def create_api(librarian):
  
         if 'keys' not in payload:
             try:
-                return jsonify({'result': 'ok', 'message': librarian.git_raw(*cmd)})
+                logger.info("Executing %r", cmd)
+                return jsonify({'result': 'ok', 'message': librarian.annex.git_raw(*cmd)})
             except Exception, e:
                 return abort(400)
 
@@ -100,7 +101,7 @@ def create_api(librarian):
         for key in payload['keys']:
             try:
                 args = cmd + [key]
-                librarian.git_lines(*args)
+                librarian.annex.git_lines(*args)
                 c += 1
             except Exception, e:
                 return abort(400)

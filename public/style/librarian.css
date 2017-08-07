@@ -9,8 +9,8 @@ DIV.preview {
 	margin: 5px;
 }
 
-.action-enabled {
-	color: #b33;
+A.action-enabled {
+	color: #b33 !important;
 }
 
 .hidden {

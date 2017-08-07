@@ -5,7 +5,7 @@ const ICON_OK = 'folder-open';
 const ICON_ERROR = 'alert';
 
 const state = {
-    query: 'state:new',
+    query: 'state:nometa',
     offset: 0,
     limit: 28,
 }
@@ -41,7 +41,7 @@ $(document).on('ready', () => {
 
     $('#action-select').on('click', (e) => {
         select_mode = (!select_mode);
-        $(e.target).toggleClass('action-enabled', select_mode);
+        $('#action-select').toggleClass('action-enabled', select_mode);
         if (!select_mode) {
             $('DIV.selected').removeClass('selected');
         }
@@ -73,13 +73,23 @@ $(document).on('ready', () => {
 
     $('#detail-console').on('click', (e) => {
         var detail = $('#detail');
-        var key = detail.data('key');
+        var key = detail.data('for');
+        console.log("Selecting %s", key)
         detail.modal('hide');
-        $('DIV.selected').removeClass('selected');
-        $('#' + key).addClass('selected');
+        clear_selection();
+        var el = $('[data-key="' + key + '"]');
+        console.log(el);
+        el.addClass('selected');
+        $('#action-console').trigger('click');
         
     });
 });
+
+function clear_selection() {
+    select_mode = false;
+    $('DIV.selected').removeClass('selected');
+    $('#action-select').removeClass('action-enabled');
+}
 
 function update(cb) {
     setStatus("Loading...", ICON_LOADING);
@@ -98,9 +108,8 @@ function update(cb) {
 
         return response.json();
     }).then((data) => {
-        console.log(data);
         setStatus(data.total + " results", ICON_OK);
-        $('#state-pos').html(state.offset + " to " + (state.offset+state.limit) + " of " + data.total);
+        $('#state-pos').html(data.start + " to " + data.end + " of " + data.total);
         displayImages(data.matches);
         setActionsEnabled(true);
         cb && cb();
@@ -114,8 +123,18 @@ function displayImages(images) {
 
         var preview = $('<div class="preview"/>');
         preview.attr('title', image.date || "unknown");
-        preview.attr('id', image.key);
-        preview.css('background-image', 'url("/api/thumb/' + image.key + '")');
+        preview.attr('data-key', image.key);
+
+        var uri = "/api/thumb/" + image.key;
+        $('<img/>').attr('src', uri)
+        .on('load', () => {
+            console.log("LOADED");
+            preview.css('background-image', 'url("' + uri + '")');
+        })
+        .on('error', (e) => {
+            console.log("ERROR", e);
+        });
+
         
         preview.on('click', (e) => {
             if (select_mode) {
@@ -127,7 +146,6 @@ function displayImages(images) {
         
         imageGrid.append(preview);
     });
-    console.log(imageGrid);
 
     $('#image-grid').html(imageGrid);
 }
@@ -152,7 +170,7 @@ function showConsole(prefix, statusText) {
 function sendCommand(cmd) {
     var keys = [];
     $('DIV.selected').each(function(i) {
-        keys.push($(this).attr('id'));
+        keys.push($(this).data('key'));
     });
 
     var payload = {cmd}
@@ -177,6 +195,7 @@ function sendCommand(cmd) {
         }
     }).then((result) => {
         $('#console-output').html(result.message);
+        clear_selection();
         if(result.result) {
             setTimeout(() => {
                 $('#console').modal('hide');
@@ -188,15 +207,13 @@ function sendCommand(cmd) {
 }
 
 function showDetail(image) {
-    console.log(image);
-    $('#detail').modal('show').data('key', image.key);
+    $('#detail').modal('show').data('for', image.key);
     $('#detail-title').html(image.key);
 
     var el = $('#detail-image');
     el.hide()
         .attr('src', '/api/preview/' + image.key)
         .on('load', () => {
-            console.log("FINISHED");
             el.slideDown();
         });
 
@@ -211,7 +228,6 @@ function showDetail(image) {
         return response.json();
     }).then((data) => {
         var meta = ""
-        console.log(data)
         for (var s in data) {
             meta += "<strong>" + s + ":</strong>\n";
             if (typeof(data[s]) == 'object') {

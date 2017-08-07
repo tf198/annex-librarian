@@ -1,13 +1,11 @@
 import unittest
-import tempfile
-import shutil
 import os, os.path
 import stat
 from librarian import Librarian
 from librarian.annex import AnnexError
 from datetime import datetime
-import subprocess
 import logging
+from tests import RepoBase, create_repo, clone_repo
 
 #logging.basicConfig(level=logging.INFO)
 
@@ -50,54 +48,8 @@ class MockBackend:
     def set_value(self, name, value):
         self.values[name] = value
 
-def create_repo(repo):
-    subprocess.check_output(['git', '-C', repo, 'init'])
-    subprocess.check_output(['git', '-C', repo, 'annex', 'init', 'testing'])
-    l = Librarian(repo, progress=None)
 
-    for i in range(3):
-        d = os.path.join(repo, 'dir_{0}'.format(i))
-        os.mkdir(d)
-        filename = os.path.join(d, 'test_%s.txt' % i)
-        with open(filename, 'w') as f:
-            f.write("Hello %d" % i)
-        l.annex.git_raw('annex', 'add', filename)
-        l.annex.git_raw('commit', '-m', 'Added %d' % i)
-
-    return l
-
-def clone_repo(origin, repo):
-    subprocess.check_output(['git', 'clone', origin, repo], stderr=subprocess.STDOUT)
-    subprocess.check_output(['git', '-C', repo, 'annex', 'init', 'testing'])
-    l = Librarian(repo, progress=None)
-    return l
-
-def destroy_repo(repo):
-    # annex protects itself well!
-    objects = os.path.join(repo, '.git', 'annex', 'objects')
-    if os.path.exists(objects):
-        for root, dirs, files in os.walk(objects):
-            for d in dirs: 
-                os.chmod(os.path.join(root, d), 0755)
-
-    shutil.rmtree(repo)
-
-class IntegrationTestCase(unittest.TestCase):
-
-    @classmethod
-    def setUpClass(cls):
-        cls.origin = tempfile.mkdtemp()
-        create_repo(cls.origin)
-
-    @classmethod
-    def tearDownClass(cls):
-       destroy_repo(cls.origin) 
-
-    def setUp(self):
-        self.repo = tempfile.mkdtemp()
-
-    def tearDown(self):
-        destroy_repo(self.repo)
+class IntegrationTestCase(RepoBase, unittest.TestCase):
 
     def test_required_paths(self):
 

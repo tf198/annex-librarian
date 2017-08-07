@@ -16,23 +16,26 @@ def key_for_content(content):
     _, key = os.path.split(content)
     return key
 
+DEBUG = logger.isEnabledFor(logging.INFO)
+
 class GitBatch:
 
     def __init__(self, cmd, is_json=False):
-        self.p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+        devnull = None if DEBUG else open(os.devnull, 'w')
+        self.p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=devnull)
         self.is_json = is_json
         self.cmd = " ".join(cmd)
         logger.debug("Spawned %r", self.cmd)
 
-    def execute(self, line):
+    def execute(self, line, is_json=False):
         if self.is_json:
             line = json.dumps(line)
         self.p.stdin.write(line)
         self.p.stdin.write('\n')
 
         result = self.p.stdout.readline().rstrip()
-        if self.is_json:
-            result = json.loads(line)
+        if self.is_json or is_json:
+            result = json.loads(result)
         return result
 
     def close(self):
@@ -66,7 +69,7 @@ class Annex:
         sout, serr = p.communicate()
 
         if p.returncode != 0:
-            if logger.isEnabledFor(logging.INFO):
+            if DEBUG:
                 sys.stderr.write("-- ERROR: %s\n" % repr(cmd))
                 sys.stderr.write("-- STDOUT\n")
                 sys.stderr.write(sout)
@@ -142,14 +145,7 @@ class Annex:
         Retrieves content from remotes if required.
         Returns <string> path to content.
         '''
-        p = os.path.realpath(self.relative_path(link))
-        if not os.path.exists(p):
-            try:
-                self.git_raw('annex', 'get', link)
-            except subprocess.CalledProcessError:
-                raise AnnexError("Failed to retrieve file: " + link)
-
-        return p
+        return self.resolve_links([link])[0][1]
 
     def resolve_links(self, links, tick=noop):
         '''

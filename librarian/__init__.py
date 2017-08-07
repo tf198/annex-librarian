@@ -259,7 +259,7 @@ class Librarian:
     def alldocs(self, offset=0, pagesize=20):
         return self.db.alldocs(offset, pagesize)
 
-    def get_meta(self, key):
+    def get_data(self, key):
         return self.db.get_data(key)
 
 

@@ -1,10 +1,21 @@
-Annex Librarian
-===============
+# Annex Librarian #
 
-Xapian based indexer for your annex
+Xapian based search engine for your annexed data.  Incrementally updates based on
+the annex metadata so everything important stays with the repo - can remove the _librarian_
+folder and everything will still come back to the same state.
 
-Installation
-------------
+Includes basic indexers for images and PDFs that add metadata items to the objects but these are
+optional and you can implement your own indexing strategy if required.
+
+## Status ##
+**Work in progress** The xapian schema may change, but a `git librarian sync -f` will repair that
+(even though it may take a few minutes).
+
+The indexers try and limit themselves to a few fields to minimise the chance of overriding user metadata.
+See below for fields to avoid if you are going to use the indexers.  If the indexers change and are re-run 
+then the fields they generate will be overwritten but others left as is.
+
+## Installation ##
 Currently uses python2.7 - will add six soon...
 
 Requires _python_, _python-xapian_
@@ -13,8 +24,7 @@ Requires _python_, _python-xapian_
 
 and then ensure _git-librarian_ is on your path.
 
-Usage
------
+## Usage ##
 
 From the command line:
 
@@ -29,9 +39,45 @@ Web interface:
 	git librarian server
 	# then visit http://localhost:7920
 
-TODO
-----
+## Indexers ##
 
-* add whitelist for /api/cli
-* make _server_ serve multiple librarian instances
+### Unindexed ###
+Some pseudo properties are stored in the search engine
 
+* date - commit date
+* state - `nometa`
+
+
+### File ###
+Uses `stat` for some basic properties
+
+* date - uses the ctime property
+* ext - result of `os.path.splitext`
+* mimetype - split content-type e.g. `['text', 'plain']`
+* size - in kB with suffix e.g `23kB`
+
+### Image ###
+
+* date - from EXIF DateTimeOriginal
+* props - Various image properties
+* device - EXIF make and model
+
+Properties are all stored under the `props` key and are
+
+* orientation - `landscape` or `portrait`
+* aspect - e.g. `4:3`
+* pano - if landscape and aspect > 2
+* resolution - e.g. `300dpi`
+* colour: `RGB` or `BW`
+
+
+## TODO ##
+
+### Librarian ###
+
+### GUI/API ###
+
+* make GUI a little more robust.
+* add whitelist for /api/cli.
+* make `server` serve multiple librarian instances.
+* implement secure public sharing based on tag/gallery/search.

@@ -14,13 +14,34 @@ def run_sync(l, options):
     return l.sync(options.commit, options.fresh)
 
 def run_search(l, options):
-    result = l.search(" ".join(options.terms), options.offset, options.limit)
-    for r in result['matches']:
-        if options.json:
+
+    pagesize = l.db.db.get_doccount() if options.all else options.limit
+    offset = 0 if options.all else options.offset
+
+    result = l.search(" ".join(options.terms), offset, pagesize)
+
+    if options.json:
+        for r in result['matches']:
             sys.stdout.write(json.dumps(r))
             sys.stdout.write("\n")
+        return
+
+    # need to map everything back to current branch
+    with open(l.relative_path('.git/HEAD'), 'r') as f:
+        raw = f.read()
+        branch = os.path.basename(raw.strip())
+    sys.stderr.write("Current branch: %s\n" % branch)
+
+    filtered = 0
+    for r in result['matches']:
+        data = l.get_data(r['key'])
+        p = data.get('paths', {}).get(branch)
+        if p is None:
+            filtered += 1
         else:
-            sys.stdout.write("%s\n" % r['key'])
+            sys.stdout.write("%s\n" % p)
+
+    sys.stderr.write("Results {0:d} to {1:d} of {2:d} ({3:d} filtered)\n".format(result['start'], result['end'], result['total'], filtered))
 
 def run_server(l, options):
     from librarian.api import create_api
@@ -79,6 +100,8 @@ search_cmd.add_argument('-o', '--offset', type=int, default=0,
         help="Offset results")
 search_cmd.add_argument('-l', '--limit', type=int, default=20,
         help="Limit results")
+search_cmd.add_argument('-a', '--all', action="store_true",
+        help="Return all matches (warning - could be a lot!)")
 search_cmd.add_argument('--json', action="store_true",
         help="Output one JSON object per line with key, date and rank properties")
 search_cmd.set_defaults(func=run_search)

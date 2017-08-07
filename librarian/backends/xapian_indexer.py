@@ -234,6 +234,8 @@ class XapianIndexer:
 
         result = {
             'matches': matches,
+            'start': offset+1,
+            'end': offset + len(matches),
             'total': mset.get_matches_estimated(),
         }
 

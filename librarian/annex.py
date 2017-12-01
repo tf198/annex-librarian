@@ -94,6 +94,9 @@ class Annex:
 
         return sout
 
+    def git_json(self, *args, **kwargs):
+        return json.loads(self.git_raw(*args, **kwargs))
+
     def git_lines(self, *args, **kwargs):
         s = self.git_raw(*args, **kwargs).strip()
         if s == '': return []
@@ -191,6 +194,53 @@ class Annex:
 
         
         return items
+    
+    def get_commit_list(self, branch, start, end=None):
+        '''
+        Returns a list of commits 
+        '''
+        # get the most recent commit
+        if end is None:
+            try:
+                end = self.git_line('show-ref', 'refs/heads/{0}'.format(branch)).split()[0]
+            except:
+                logger.debug("No commits for branch " + branch)
+                return [] 
+       
+        if end == start:
+            logger.debug("Already up to date")
+            return []
+
+        # get a list of commits to bring us up to date
+        if start:
+            commit_range = "{0}...{1}".format(end, start)
+        else:
+            commit_range = end
+
+        logger.debug("Finding new commits on %s...", branch)
+
+        commits = self.git_lines('rev-list', commit_range, '--reverse')
+        return commits
+
+    def file_modifications(self, commit):
+        '''
+        Returns an iterator of (filename, stat) objects for a given commit
+        '''
+
+        commit_date = self.git_line('show', '-s', '--format=%cI', commit)
+        logger.debug("Commit %s (%s) [%d/%d]", commit[:8], commit_date[:10])
+
+        tree = self.git_lines('diff-tree', '--root', '-r', commit)
+
+        for item in tree:
+            parts = item.split("\t")
+            if len(parts) == 2:
+                stat = dict(zip(['_mode', 'mode', 'parent', 'blob', 'action'], parts[0].split(" ")))
+                stat['date'] = commit_date
+                stat['commit'] = commit
+                filename = parts[1]
+
+                yield filename, stat
 
 def parse_meta_log(lines):
     result = {}
@@ -219,3 +269,15 @@ def parse_meta_log(lines):
                     result[field] = set()
 
     return { k: list(v) for k, v in result.items() if v }
+
+def parse_location_log(lines):
+    locations = set()
+    
+    for line in lines:
+        parts = line.split()
+        if parts[1] == '1': 
+            locations.add(parts[2])
+        else:
+            locations.discard(parts[2])
+    
+    return list(locations)

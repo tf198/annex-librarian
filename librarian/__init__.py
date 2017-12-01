@@ -119,13 +119,13 @@ class Librarian:
         self.db.unset_writable()
         return self.get_head('git-annex')
 
-    def get_details(self, filename):
+    def get_details(self, filename, include_terms=False):
         result = {}
 
         key = self.annex.key_for_link(filename)
         p = self.annex.git_line('annex', 'examinekey', '--format', "${hashdirlower}${key}", key)
 
-        data = self.db.get_data(key, include_terms=True)
+        data = self.db.get_data(key, include_terms)
 
         return data
 

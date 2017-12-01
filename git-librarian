@@ -73,7 +73,7 @@ def run_server(l, options):
     WSGIServer(('', options.port), app).serve_forever()
 
 def run_show(l, options):
-    detail = l.get_details(options.file, options.commit)
+    detail = l.get_details(options.file, options.terms)
     return json.dumps(detail, indent=1)
 
 def run_inspector(l, options):
@@ -89,7 +89,7 @@ def run_inspector(l, options):
         c = 0
         total = 0
         while True:
-            items = l.search('state:noinfo', pagesize=20)['matches']
+            items = l.search('state:noinfo', pagesize=options.batch)['matches']
 
             if len(items) == 0:
                 break
@@ -99,6 +99,9 @@ def run_inspector(l, options):
             r = inspector.inspect_items(l.annex, [ x['key'] for x in items ], True)
             result['inspected'] += r['inspected']
             result['commit'] = l.sync()
+
+            if options.limit and result.total > options.limit:
+                break
 
     return "Inspected {inspected} of {total} files".format(**result)
 
@@ -141,7 +144,8 @@ server_cmd.set_defaults(func=run_server)
 
 show_cmd = subparsers.add_parser('show', help="Show information for a document",
         description="Show information for a document")
-show_cmd.add_argument('-c', '--commit', default="HEAD", help="Specific commit (default=HEAD)")
+show_cmd.add_argument('-t', '--terms', action="store_true",
+        help="Show stored terms")
 show_cmd.add_argument('file', help="File to show")
 show_cmd.set_defaults(func=run_show)
 
@@ -149,6 +153,8 @@ inspect_cmd = subparsers.add_parser('inspect', help="Run inspectors on one or mo
         description="Run all configured inspectors on the files specified")
 inspect_cmd.add_argument('-k', '--keys', help="Items are keys, not files")
 inspect_cmd.add_argument('-i', '--inspector', default="auto", help="Use a specific extractor")
+inspect_cmd.add_argument('-b', '--batch', type=int, default=100)
+inspect_cmd.add_argument('-l', '--limit', type=int, default=0)
 inspect_cmd.add_argument('files', nargs="*" ,help="Files to inspect")
 inspect_cmd.set_defaults(func=run_inspector)
 

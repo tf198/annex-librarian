@@ -100,7 +100,7 @@ def run_inspector(l, options):
             result['inspected'] += r['inspected']
             result['commit'] = l.sync()
 
-            if options.limit and result['total'] > options.limit:
+            if options.limit and result['total'] >= options.limit:
                 break
 
     return "Inspected {inspected} of {total} files".format(**result)

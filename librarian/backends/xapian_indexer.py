@@ -34,10 +34,13 @@ def term_date(d):
         raise ValueError("Failed to parse date {0}".format(d))
 
 def get_dotted(d, key):
-    parts = key.split('.')
-    for p in parts[:-1]:
-        d = d[p]
-    return d[parts[-1]]
+    try:
+        parts = key.split('.')
+        for p in parts[:-1]:
+            d = d[p]
+        return d[parts[-1]]
+    except:
+        raise KeyError("No such key: " + key)
 
 def first_of(d, *args):
     for a in args:
@@ -156,6 +159,8 @@ class XapianIndexer:
             for section in data:
            
                 if section[0] == '_': continue
+
+                if data[section] is None: continue
 
                 for field, values in data[section].items():
 

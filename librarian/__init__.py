@@ -107,11 +107,17 @@ class Librarian:
                         data = {}
                     paths = data.setdefault('paths', {})
 
+                    
+
                     if p is None:
                         del(paths[branch])
                     else:
                         paths[branch] = p
-                    self.db.put_data(key, data)
+                    try:
+                        self.db.put_data(key, data)
+                    except:
+                        logger.exception("Failed to put data: %r", data)
+                        raise
 
                 self.set_head(branch, commit)
                 pbar.tick(commit)
@@ -144,16 +150,16 @@ class Librarian:
     def _process_log(self, key, stat):
 
         # TODO: add content location
-        if stat['action'] == 'A':
+        if stat['action'] in ['A', 'M']:
             log = {
-                'added': stat['date'][:19],
+                'updated': stat['date'][:19],
                 'extension': stat['ext'],
             }
             return log
 
         if stat['action'] == 'D':
             logger.warning("Deleted logfile for %s:", key)
-
+        
         return None
 
     def _process_info(self, key, stat):

@@ -138,7 +138,8 @@ class XapianIndexer:
             data['_date'] = first_of(data,
                     'meta.date',
                     'image.created',
-                    'log.added')
+                    'file.created',
+                    'log.updated')
             if isinstance(data['_date'], (list, tuple)):
                 data['_date'] = data['_date'][0]
             boolean_terms.add('D{0}'.format(term_date(data['_date'])))

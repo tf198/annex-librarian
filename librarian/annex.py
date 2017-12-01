@@ -228,7 +228,7 @@ class Annex:
         '''
 
         commit_date = self.git_line('show', '-s', '--format=%cI', commit)
-        logger.debug("Commit %s (%s) [%d/%d]", commit[:8], commit_date[:10])
+        logger.debug("Commit %s (%s)", commit[:8], commit_date[:10])
 
         tree = self.git_lines('diff-tree', '--root', '-r', commit)
 

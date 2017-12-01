@@ -5,7 +5,7 @@ import json
 from gevent import subprocess
 
 from backends import xapian_indexer as backend
-from annex import Annex, parse_meta_log
+from annex import Annex, parse_meta_log, parse_location_log
 
 from librarian import progress
 
@@ -149,11 +149,14 @@ class Librarian:
 
     def _process_log(self, key, stat):
 
+
         # TODO: add content location
         if stat['action'] in ['A', 'M']:
+            locations = parse_location_log(self.annex.git_lines('cat-file', 'blob', stat['blob']))
             log = {
                 'updated': stat['date'][:19],
                 'extension': stat['ext'],
+                'locations': locations,
             }
             return log
 

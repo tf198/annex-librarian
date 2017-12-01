@@ -74,6 +74,8 @@ def image_inspector(filename):
         mode = 'BW'
     props.append(mode)
 
+    logger.debug("Image info: %r", info)
+
     return info
 
 image_inspector.extensions = ['.jpg', 'jpeg', '.tif', '.png', '.gif']

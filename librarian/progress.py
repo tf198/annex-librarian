@@ -1,3 +1,15 @@
+'''
+Simple progress meter
+
+Uses the current log level to decided whether to render or not
+'''
+import sys
+
+import logging
+logger = logging.getLogger(__name__)
+
+ENABLED = True
+
 class Progress:
 
     step = 0
@@ -43,4 +55,11 @@ class Progress:
         if self.stream is not None:
             self.stream.write("\nERROR: {0}\n".format(message))
 
+def getProgress():
 
+    if ENABLED == False or logger.isEnabledFor(logging.DEBUG):
+        s = None
+    else:
+        s = sys.stderr
+
+    return Progress(stream=s)

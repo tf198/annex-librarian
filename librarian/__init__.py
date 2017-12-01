@@ -5,10 +5,9 @@ import json
 from gevent import subprocess
 
 from backends import xapian_indexer as backend
-from indexers import Indexer
-from annex import Annex
-from progress import Progress
-from meta import parse_meta_log
+from annex import Annex, parse_meta_log
+
+from librarian import progress
 
 logger = logging.getLogger(__name__);
 
@@ -22,7 +21,7 @@ class Librarian:
     Curator of annex metadata
     '''
 
-    def __init__(self, path, config=None, progress=sys.stderr):
+    def __init__(self, path, config=None):
         self.base_path = os.path.abspath(path)
         if not os.path.exists(self.base_path):
             raise IOError("No such directory: {}".format(self.base_path))
@@ -43,10 +42,6 @@ class Librarian:
 
         self.db = backend.XapianIndexer(os.path.join(librarian_path, 'db'))
 
-        self.indexer = Indexer(*self.config['INDEXERS'])
-        self.progress = Progress(stream=progress)
-
-
     def relative_path(self, p):
         return os.path.join(self.base_path, p)
 
@@ -66,40 +61,39 @@ class Librarian:
             if filename == 'uuid.log':
                 continue
 
-            meta = None
+            data = None
 
             if filename.endswith('.log.met'):
                 key = filename[:-8]
-                _, ext = os.path.splitext(key)
-                stat['ext'] = ext[1:]
-                meta = self._process_meta_log(key, stat)
+                data = {'meta': self._process_meta_log(key, stat)}
 
             if filename.endswith('.log'):
                 key = filename[:-4]
                 _, ext = os.path.splitext(key)
                 stat['ext'] = ext[1:]
-                meta = self._process_log(key, stat)
+                data = {'log': self._process_log(key, stat)}
 
-            if meta is not None:
-                data = self._get_current(key)
-                
-                if data.get('meta', {}) != meta:
-                    data['meta'] = meta
-                    self.db.put_data(key, data)
+            if filename.endswith('.info'):
+                key = filename[:-5]
+                section = 'info'
+                data = self._process_info(key, stat)
+
+            if data is not None:
+                logger.debug("updating %r", data.keys())
+                self.db.update_data(key, data)
         
         for branch in self.config['BRANCHES']:
             for filename, stat in self.file_modifications('master', start):
                 key, p = self._process_branch_file('master', filename, stat)
 
-                if p is not None:
-                    data = self._get_current(key)
-                    paths = data.setdefault('paths', {})
-                    if paths.get(branch) != p:
-                        if p:
-                            paths[branch] = p
-                        else:
-                            del(paths[branch])
-                    self.db.put_data(key, data)
+                data = self._get_current(key)
+                paths = data.setdefault('paths', {})
+
+                if p is None:
+                    del(paths[branch])
+                else:
+                    paths[branch] = p
+                self.db.put_data(key, data)
 
         self.db.unset_writable()
         return self.get_head('git-annex')
@@ -110,9 +104,43 @@ class Librarian:
         except KeyError:
             return {}
 
-    def run_indexer(self, items, keys=False, batchsize=100):
+    def get_details(self, filename, commit):
+        result = {}
+
+        key = self.annex.key_for_link(filename)
+        p = self.annex.git_line('annex', 'examinekey', '--format', "${hashdirlower}${key}", key)
+
+        data = self.db.get_data(key, include_terms=True)
+
+        return data
+
+        if commit == 'HEAD': commit = 'git-annex'
+
+        try:
+            for line in self.annex.git_lines('show', "{0}:{1}.log".format(commit, p)):
+                locations = set()
+                parts = line.split()
+                if parts[1] == '1': 
+                    locations.add(parts[2])
+                else:
+                    locations.discard(parts[2])
+                result['locations'] = list(locations)
+
+        except:
+            logger.exception("Failed to read locations");
+
+        try:
+            data = json.loads(self.annex.git_raw('show', "{0}:{1}.info".format(commit, p)))
+            result.update(data)
+        except:
+            pass
+
+        return result
+
+    '''
+    def run_inspector(self, items, keys=False, batchsize=100):
         c = 0
-        
+
         if not items:
             total = 0
             while True:
@@ -126,52 +154,59 @@ class Librarian:
                 result = self.run_indexer([ x['key'] for x in items ], True, batchsize+1)
                 c += result['indexed']
             return
-        
-        self.progress.init(len(items), "Resolving files...")
-        if keys:
-            items = self.annex.resolve_keys(items, self.progress.tick)
+       
+        # prepare workspace
+        worktree = self.annex.relative_path('.git/librarian/git-librarian')
+        if not os.path.exists(worktree):
+            self.annex.git_raw('worktree', 'add', worktree, 'git-annex')
         else:
-            items = self.annex.resolve_links(items, self.progress.tick)
+            self.annex.git_raw('checkout', work_dir=worktree)
 
-        indexer = Indexer('file', 'image')
+        context.progress.init(len(items), "Resolving files...")
+        if keys:
+            items = self.annex.resolve_keys(items, context.progress.tick)
+        else:
+            items = self.annex.resolve_links(items, context.progress.tick)
 
-        self.progress.init(len(items), 'Indexing...')
-        
-        batch = self.annex.git_batch(['annex', 'metadata', '--json']) # doing our own json
-        try:
-            for i, f in items:
-                payload = {'fields': indexer.index_file(f)}
-                if keys:
-                    payload['key'] = i
-                else:
-                    payload['file'] = i
+        inspector = Inspector('file', 'image')
 
-                result = batch.execute(json.dumps(payload))
-                if not result:
-                    logger.error(result.get('message', "Error indexing file"))
-                self.progress.tick()
-                c += 1
+        context.progress.init(len(items), 'Inspecting...')
 
-                if c % batchsize == 0:
-                    logger.debug("Flushing batch")
-                    batch.close()
-                    batch = self.annex.git_batch(['annex', 'metadata', '--json']) # doing our own json
+        for i, f in items:
+            key = self.annex.key_for_link(f);
+            doc = inspector.inspect_file(f)
+            annex_location = self.annex.git_line('annex', 'examinekey', '--format', worktree + '/${hashdirlower}${key}.json', key)
+            logger.debug("Writing to %s", annex_location)
 
-        finally:
-            batch.close()
-        
-        return {'total': len(items), 'indexed': c, 'commit': self.sync()}
+            with open(annex_location, 'w') as f:
+                json.dump(doc, f)
 
+            self.annex.git_raw('add', annex_location, work_dir=worktree)
+            c += 1
+            context.progress.tick()
+
+        changes = self.annex.git_lines('status', '--porcelain', work_dir=worktree)
+        if len(changes):
+            self.annex.git_raw('commit', '-m', 'Inspected {0} items'.format(c), work_dir=worktree)
+                
+        return {'total': len(items), 'inspected': c, 'commit': self.sync()}
+    '''
     def file_modifications(self, branch, start=None, update_head=True):
 
+        pbar = progress.getProgress()
+
         # get the most recent commit
-        latest = self.annex.git_line('show-ref', 'refs/heads/{0}'.format(branch)).split()[0]
+        try:
+            latest = self.annex.git_line('show-ref', 'refs/heads/{0}'.format(branch)).split()[0]
+        except:
+            logger.debug("No commits for branch " + branch)
+            return 
         
         if start is None:
             start = self.get_head(branch)
        
         if latest == start:
-            logger.info("Already up to date")
+            logger.debug("Already up to date")
             return
 
         # get a list of commits to bring us up to date
@@ -180,10 +215,10 @@ class Librarian:
         else:
             commit_range = latest
         logger.debug("Finding new commits on %s...", branch)
-        self.progress.log("Finding new commits on %s...", branch)
+        pbar.log("Finding new commits on %s...", branch)
 
         commits = self.annex.git_lines('rev-list', commit_range, '--reverse')
-        self.progress.init(len(commits))
+        pbar.init(len(commits))
 
         for i, commit in enumerate(commits):
             commit_date = self.annex.git_line('show', '-s', '--format=%cI', commit)
@@ -204,41 +239,38 @@ class Librarian:
             if update_head:
                 self.set_head(branch, commit)
 
-            self.progress.tick(commit[:8])
+            pbar.tick(commit[:8])
 
     def _process_meta_log(self, key, stat):
         if stat['action'] == 'D':
             logger.warning("Deleted meta for %s", key)
             return
 
-        #logger.debug("Metafile: %s", key)
-
         meta = parse_meta_log(self.annex.git_lines('cat-file', 'blob', stat['blob']))
         
         meta['state'] = ['tagged'] if len(meta.get('tag', [])) > 0 else ['untagged']
-        meta['extension'] = [stat['ext']]
-        meta.setdefault('indexers', ['none'])
-        meta.setdefault('date', [stat['date'][:19]])
+        #meta['updated'] = stat['date'][:19]
 
         return meta
 
     def _process_log(self, key, stat):
 
-        #logger.debug("Logfile: %s [%d]", key, stat['action'])
-
+        # TODO: add content location
         if stat['action'] == 'A':
-            meta = {
-                'state': ['nometa'],
-                'indexers': ['none'],
-                'date': [stat['date'][:19]],
-                'extension': [stat['ext']],
+            log = {
+                'added': stat['date'][:19],
+                'extension': stat['ext'],
             }
-            return meta
+            return log
 
         if stat['action'] == 'D':
             logger.warning("Deleted logfile for %s:", key)
 
         return None
+
+    def _process_info(self, key, stat):
+        info = json.loads(self.annex.git_raw('cat-file', 'blob', stat['blob']))
+        return info
 
     def _process_branch_file(self, branch, filename, stat):
 
@@ -250,7 +282,7 @@ class Librarian:
             logger.debug("Deleted branch file: %s", filename)
             key = os.path.basename(self.annex.git_line('cat-file', 'blob', stat['parent']))
 
-            return key, ''
+            return key, None
 
 
     def search(self, terms, offset=0, pagesize=20):

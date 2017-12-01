@@ -1,6 +1,10 @@
 
 SCHEMA_VERSION = '0.2'
 
+'''
+Boolean terms will be indexed prefixed without any position information.
+They will also be indexed stemmed.
+'''
 BOOLEAN_PREFIXES = (
     ('topic', 'B'),
     ('branch', 'B'),
@@ -21,16 +25,20 @@ BOOLEAN_PREFIXES = (
 
     ('device', 'XD'),
     ('size', 'XK'),
-    ('indexers', 'XI'),
+    ('inspectors', 'XI'),
     ('props', 'XP'),
     ('properties', 'XP'),
     ('state', 'XS'),
 )
 
-
+'''
+Free terms will be indexed stemmed with positional information.
+'''
 FREE_PREFIXES = (
     ('author', 'A'),
     ('date', 'D'),
+    ('created', 'DC'),
+    ('added', 'DA'),
     ('filename', 'F'),
     ('raw', 'R'),
     ('subject', 'S'), # or title
@@ -40,5 +48,8 @@ FREE_PREFIXES = (
 BOOLEAN_TERMS = dict(BOOLEAN_PREFIXES)
 FREE_TERMS = dict(FREE_PREFIXES)
 
+'''
+These prefixes will be skipped for stemming
+'''
 # extension, path, mimetype, size
-SKIP_FREE = ('E', 'T', 'P', 'XK', 'XI', 'XS')
+BOOLEAN_ONLY = ('E', 'T', 'P', 'XK', 'XI', 'XS')

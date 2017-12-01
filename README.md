@@ -4,8 +4,18 @@ Xapian based search engine for your annexed data.  Incrementally updates based o
 the annex metadata so everything important stays with the repo - can remove the _librarian_
 folder and everything will still come back to the same state.
 
-Includes basic indexers for images and PDFs that add metadata items to the objects but these are
+You can build the index on __any__ clone without pulling in the annexed files.  Web interface will
+pull them in from another location on demand.
+
+Includes basic extractors for images and PDFs that create html representations of the objects but these are
 optional and you can implement your own indexing strategy if required.
+
+Adds a couple of extra files to the `git-annex` branch:
+
+111/222/SHA256E-s12--aa...ff.json: JSON representation of the file.
+
+111/222/SHA256E-s12-aa...ff.jpg: Preview image - should be less than 10K.  This can be annexed - TODO: figure 
+out how we exclude these....
 
 ## Status ##
 **Work in progress** The xapian schema may change, but a `git librarian sync -f` will repair that

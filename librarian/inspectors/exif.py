@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 def date_to_iso(d):
     return d[:10].replace(':', '-') + "T" + d[11:]
 
-def exif_indexer(filename, meta):
+def exif_inspector(filename, meta):
     with open(filename, 'rb') as f:
         tags = exifread.process_file(f, details=False)
 

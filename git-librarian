@@ -72,9 +72,35 @@ def run_server(l, options):
     sys.stderr.write("Listening on %d\n" % options.port)
     WSGIServer(('', options.port), app).serve_forever()
 
-def run_index(l, options): 
-    result = l.run_indexer(options.files, options.keys)
-    return "Indexed {indexed} of {total} files".format(**result)
+def run_show(l, options):
+    detail = l.get_details(options.file, options.commit)
+    return json.dumps(detail, indent=1)
+
+def run_inspector(l, options):
+    from librarian.inspectors import Inspector 
+
+    inspector = Inspector('file', 'image')
+
+    if options.files:
+        result = inspector.inspect_items(l.annex, options.files, options.keys)
+        result['commit'] = l.sync()
+    else:
+        result = {'inspected': 0, 'total': 0}
+        c = 0
+        total = 0
+        while True:
+            items = l.search('state:noinfo', pagesize=20)['matches']
+
+            if len(items) == 0:
+                break
+
+            result['total'] += len(items)
+
+            r = inspector.inspect_items(l.annex, [ x['key'] for x in items ], True)
+            result['inspected'] += r['inspected']
+            result['commit'] = l.sync()
+
+    return "Inspected {inspected} of {total} files".format(**result)
 
 parser = argparse.ArgumentParser(description="Curator for your annexed data")
 
@@ -82,6 +108,8 @@ parser.add_argument('-C', default='.', dest="path",
         help="Run as if git was started in <PATH>")
 parser.add_argument('-l', dest="logging",
         help="Logging string (format: name:level, default: none)")
+parser.add_argument('-q', '--quiet', action="store_true",
+        help="Dont output progress")
 
 subparsers = parser.add_subparsers();
 
@@ -111,12 +139,18 @@ server_cmd.add_argument('-p', '--port', type=int, default=7920,
         help="Port to use")
 server_cmd.set_defaults(func=run_server)
 
-index_cmd = subparsers.add_parser('index', help="Index one or more documents",
-        description="Run all configured indexers on the files specified")
-index_cmd.add_argument('-k', '--keys', help="Items are keys, not files")
-index_cmd.add_argument('-i', '--indexer', default="auto", help="Use a specific indexer")
-index_cmd.add_argument('files', nargs="*" ,help="Files to index")
-index_cmd.set_defaults(func=run_index)
+show_cmd = subparsers.add_parser('show', help="Show information for a document",
+        description="Show information for a document")
+show_cmd.add_argument('-c', '--commit', default="HEAD", help="Specific commit (default=HEAD)")
+show_cmd.add_argument('file', help="File to show")
+show_cmd.set_defaults(func=run_show)
+
+inspect_cmd = subparsers.add_parser('inspect', help="Run inspectors on one or more documents",
+        description="Run all configured inspectors on the files specified")
+inspect_cmd.add_argument('-k', '--keys', help="Items are keys, not files")
+inspect_cmd.add_argument('-i', '--inspector', default="auto", help="Use a specific extractor")
+inspect_cmd.add_argument('files', nargs="*" ,help="Files to inspect")
+inspect_cmd.set_defaults(func=run_inspector)
 
 args = parser.parse_args()
 
@@ -134,6 +168,8 @@ if args.logging:
     console = logging.StreamHandler(sys.stderr)
     console.setFormatter(logging.Formatter("%(levelname)5s: %(message)s"))
     target.addHandler(console)
+else:
+    logging.basicConfig(level=logging.WARNING)
 
 logger = logging.getLogger(__name__)
 logger.debug("Args: %r", args)

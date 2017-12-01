@@ -1,8 +1,13 @@
+'''
+Helpers for interacting with an annexed git repo
+'''
+
 from gevent import subprocess
 import os.path
 import logging
 import json
 import sys
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -55,15 +60,24 @@ class Annex:
         if not os.path.exists(os.path.join(self.repo, '.git', 'annex')):
             raise IOError("{} is not an annexed repo".format(self.repo))
 
-
-        self.git_cmd = ('git', '-C', self.repo)
+        self.git_options = {'work_dir': self.repo};
 
     def relative_path(self, p):
         return os.path.join(self.repo, p);
 
-    def git_raw(self, *args):
-        cmd = self.git_cmd + args
-        #logger.debug("Executing %r", cmd)
+    def git_cmd(self, args, options=None):
+        opts = self.git_options.copy();
+        if options: opts.update(options);
+
+        cmd = ('git',)
+        if 'work_dir' in opts: cmd += ('-C', opts['work_dir'])
+
+        return cmd + args
+
+    def git_raw(self, *args, **kwargs):
+        #cmd = self.git_cmd + args
+        cmd = self.git_cmd(args, kwargs)
+        logger.debug("Executing %r", cmd)
 
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         sout, serr = p.communicate()
@@ -80,18 +94,21 @@ class Annex:
 
         return sout
 
-    def git_lines(self, *args):
-        return self.git_raw(*args).strip().split("\n")
+    def git_lines(self, *args, **kwargs):
+        s = self.git_raw(*args, **kwargs).strip()
+        if s == '': return []
+        return s.split("\n")
 
-    def git_line(self, *args):
-        r = self.git_lines(*args)
+    def git_line(self, *args, **kwargs):
+        r = self.git_lines(*args, **kwargs)
 
         if len(r) != 1: raise GitError("Expected one line, got {0}".format(len(r)), "\n".join(r))
         return r[0]
 
     def git_batch(self, args, is_json=False):
         extra = ('--json', '--batch') if is_json else ('--batch', )
-        cmd = self.git_cmd + tuple(args) + extra
+        #cmd = self.git_cmd + tuple(args) + extra
+        cmd = self.git_cmd(tuple(args) + extra)
         return GitBatch(cmd, is_json)
 
     def content_for_link(self, link):
@@ -174,3 +191,31 @@ class Annex:
 
         
         return items
+
+def parse_meta_log(lines):
+    result = {}
+    field = None
+
+    for line in lines:
+        parts = line.split()
+
+        for token in parts[1:]:
+            if token[0] in '+-':
+                op = token[0]
+                token = token[1:]
+                if token[0] == '!':
+                    token = base64.b64decode(token[1:])
+
+                if op == '+':
+                    result[field].add(token)
+                else:
+                    try:
+                        result[field].remove(token)
+                    except KeyError:
+                        pass
+            else:
+                field = token
+                if not field in result:
+                    result[field] = set()
+
+    return { k: list(v) for k, v in result.items() if v }

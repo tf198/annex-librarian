@@ -2,6 +2,7 @@ import unittest
 import os, os.path
 import stat
 from librarian import Librarian
+from librarian.inspectors import Inspector
 from librarian.annex import AnnexError
 from datetime import datetime
 import logging
@@ -20,6 +21,7 @@ ALL_DOCS = [ x[1] for x in DOCS ]
 DOC_KEYS = { k: v for (k, v) in DOCS }
 
 NOW = datetime.now().isoformat()[:19]
+DNOW = ''.join(NOW.split('T')[0].split('-'))
 
 def now(chars):
     return NOW[:chars].replace('-', '')
@@ -63,24 +65,20 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
 
         l = create_repo(self.repo)
         head = l.sync()
+        
 
         self.assertSearchResult(l.db.alldocs(), ALL_DOCS)
 
         self.assertSearchResult(l.search('path:dir_2'),
                 ['SHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt'])
 
-        self.assertSearchResult(l.search('state:nometa'), ALL_DOCS, True)
+        self.assertSearchResult(l.search('state:untagged'), ALL_DOCS, True)
 
         data = l.db.get_data('SHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt')
         self.assertEqual(data['_docid'], 3)
-        meta = data['meta']
-        self.assertDictEqual(meta, {
-            'indexers': ['none'],
-            'date': meta['date'],
-            'state': ['nometa'],
-            'extension': ['txt'],
-        });
-        self.assertEqual(meta['date'][0][:10], NOW[:10])
+        self.assertDictEqual(data['meta'], {'state': 'untagged'})
+        self.assertDictEqual(data['info'], {'state': 'noinfo'})
+        self.assertEqual(data['_date'][:10], NOW[:10])
 
         self.assertEqual(l.sync(), head)
 
@@ -88,8 +86,7 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
         l.annex.git_lines('annex', 'metadata', '-t', 'animals', '-t', 'cat', '-s', 'date=2001-01-01T12:00:00', 'dir_2/test_2.txt')
         self.assertNotEqual(l.sync(), head)
 
-        r = l.db.search('state:nometa')
-        self.assertSearchResult(l.db.search('state:nometa'), ALL_DOCS[:2], True)
+        self.assertSearchResult(l.db.search('state:untagged'), ALL_DOCS[:2], True)
 
         r = l.search('tag:animals')
         self.assertEqual(r['total'], 1)
@@ -101,17 +98,21 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
         data = l.db.get_data('SHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt')
         self.assertEqual(data['_docid'], 3)
         self.assertDictEqual(data['meta'], {
-            'indexers': ['none'],
-            'extension': ['txt'],
             'state': ['tagged'],
             'tag': ['animals', 'cat'],
             'date': ['2001-01-01T12:00:00'],
         });
-        r = l.run_indexer(ALL_DOCS[:2], True) # test_0 and test_1
-        self.assertEqual(r['indexed'], 2)
-        self.assertEqual(r['total'], 2)
 
-        self.assertSearchResult(l.db.search('state:nometa'), [])
+        #self.skipTest("Need to finish updating this...")
+
+        inspector = Inspector('file')
+        r = inspector.inspect_items(l.annex, ALL_DOCS[:2], True)
+        #r = l.run_indexer(ALL_DOCS[:2], True) # test_0 and test_1
+        self.assertEqual(r['inspected'], 2)
+        self.assertEqual(r['total'], 2)
+        l.sync()
+
+        #self.assertSearchResult(l.db.search('state:noinfo'), [])
 
         #print([ t.term for t in l.db.db.get_document(2).termlist() ])
 
@@ -123,25 +124,24 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
 
         data = l.db.get_data('SHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt')
         self.assertEqual(data['_docid'], 2)
-        meta = data['meta']
-        self.assertDictEqual(meta, {
-            'date': meta['date'],
+        self.assertEqual(data['_date'], data['log']['added'])
+        self.assertDictEqual(data['meta'], {'state': 'untagged'})
+        self.assertDictEqual(data['file'], {
+            'created': data['file']['created'],
             'extension': ['txt'],
-            'indexers': ['file'],
-            'mimetype': ['plain', 'text'],
-            'size': ['0kB'],
-            'state': ['untagged']
+            'mimetype': ['text', 'plain'],
+            'size': ['0kB']
         })
-        self.assertEqual(meta['date'][0][:10], NOW[:10])
 
         self.assertSearchResult(l.db.search('state:untagged'), ALL_DOCS[:2], True)
 
         # check the terms generated for test_1
         self.assertDocTerms(l.db.db.get_document(2), [
             'Bmaster',
-            'D' + NOW[:10].replace('-', ''),
+            'D' + DNOW,
+            'DA' + DNOW,
+            'DC' + DNOW,
             'Etxt',
-            'M' + NOW[:7].replace('-', ''),
             'Pdir_1',
             'Ptest_1',
             'QKSHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt',
@@ -150,24 +150,22 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
             'XK0kb',
             'XSok',
             'XSuntagged',
-            'Y' + NOW[:4],
         ])
 
         # check the terms generated for test_3
         self.assertDocTerms(l.db.db.get_document(3), [
             'Bmaster',
             'D20010101',
+            'DA' + DNOW,
             'Etxt',
             'Kanimals',
             'Kcat',
-            'M200101',
             'Pdir_2',
             'Ptest_2',
             'QKSHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt',
-            'XInone',
+            'XSnoinfo',
             'XSok',
             'XStagged',
-            'Y2001',
             'Zanim',
             'Zcat',
             'animals',
@@ -252,10 +250,11 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
         # content still exists for key
         data = l.db.get_data(DOC_KEYS['test_1'])
         self.assertDictEqual(data['paths'], {})
-        self.assertListEqual(data['meta']['state'], ['nometa'])
+        self.assertEqual(data['meta']['state'], 'untagged')
 
         # but is not searchable
         self.assertDocTerms(l.db.db.get_document(2), [
+            'D' + DNOW,
             'QK' + DOC_KEYS['test_1'],
             'XSdropped',
         ])
@@ -274,11 +273,12 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
         # branch file deleted but content still present
         data = l.db.get_data(DOC_KEYS['test_1'])
         self.assertEqual(data['paths'], {})
-        self.assertEqual(data['meta']['state'], ['nometa'])
+        self.assertEqual(data['meta']['state'], 'untagged')
 
         # but is not searchable
         doc = l.db.db.get_document(2)
         self.assertDocTerms(doc, [
+            'D' + DNOW,
             'QK' + DOC_KEYS['test_1'],
             'XSdropped'
         ])

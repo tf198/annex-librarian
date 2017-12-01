@@ -17,12 +17,13 @@ def exif_date_to_iso(d):
     return d[:10].replace(':', '-') + "T" + d[11:]
 
 
-
-def image_indexer(filename, meta):
+def image_inspector(filename):
     
     im = Image.open(filename)
-    
-    props = meta.setdefault('props', [])
+   
+    info = {}
+
+    props = info.setdefault('props', [])
 
     width, height = im.size
 
@@ -32,7 +33,7 @@ def image_indexer(filename, meta):
 
         created = exif.get('EXIF DateTimeOriginal')
         if created:
-            meta['date'] = [ exif_date_to_iso(str(created)) ]
+            info['created'] = [ exif_date_to_iso(str(created)) ]
 
         o = exif.get('Image Orientation')
         if o:
@@ -43,7 +44,7 @@ def image_indexer(filename, meta):
         if res:
             props.append("{0}dpi".format(res.values[0]))
 
-        device = meta.setdefault('device', [])
+        device = info.setdefault('device', [])
         make = exif.get('Image Make')
         if make:
             device.append(str(make))
@@ -72,3 +73,7 @@ def image_indexer(filename, meta):
     if mode == '1':
         mode = 'BW'
     props.append(mode)
+
+    return info
+
+image_inspector.extensions = ['.jpg', 'jpeg', '.tif', '.png', '.gif']

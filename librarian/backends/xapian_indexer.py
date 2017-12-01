@@ -27,6 +27,26 @@ def decode_sortable_date(r):
     if t == 0: return None
     return time.strftime(ISO_8601, time.localtime(t))
 
+def term_date(d):
+    try:
+        return ''.join(d.split('T')[0].split('-'))
+    except:
+        raise ValueError("Failed to parse date {0}".format(d))
+
+def get_dotted(d, key):
+    parts = key.split('.')
+    for p in parts[:-1]:
+        d = d[p]
+    return d[parts[-1]]
+
+def first_of(d, *args):
+    for a in args:
+        try:
+            return get_dotted(d, a)
+        except KeyError:
+            pass
+    raise KeyError("No provided key in dict")
+
 class XapianIndexer:
 
     _db = None
@@ -88,84 +108,98 @@ class XapianIndexer:
     def set_value(self, key, value):
         return self.db.set_metadata(key, value)
 
-    def update_data(self, key, section, info):
+    def update_data(self, key, info):
 
         try:
             data = self.get_data(key)
         except KeyError:
-            data = {}
+            data = {
+                'meta': {'state': 'untagged'},
+                'info': {'state': 'noinfo'}
+            }
 
         # dont re-index if no changes
-        if data.get(section, {}) == info:
+        if data == info:
             logger.debug("No changes")
             return
 
-        if info:
-            data[section] = info
-        else:
-            del(data[section])
+        data.update(info)
 
         self.put_data(key, data)
 
     def put_data(self, key, data):
 
+        boolean_terms = set()
+        
         try:
-            sortvalue = encode_sortable_date(data['meta']['date'][0]);
+            data['_date'] = first_of(data,
+                    'meta.date',
+                    'image.created',
+                    'log.added')
+            if isinstance(data['_date'], (list, tuple)):
+                data['_date'] = data['_date'][0]
+            boolean_terms.add('D{0}'.format(term_date(data['_date'])))
         except KeyError:
-            sortvalue = encode_sortable_date('');
-
-        logger.debug("%r", data)
+            data['_date'] = ''
+        
+        logger.debug("Sort key: %r", data['_date'])
+        sortvalue = encode_sortable_date(data['_date'])
 
         doc = xapian.Document()
         self.term_generator.set_document(doc)
 
-        boolean_terms = set()
 
         paths = data.get('paths')
-    
-        if paths:
-            for field, values in data.get('meta', {}).items():
 
-                if not isinstance(values, (list, tuple)):
-                    values = [values]
+        if data.get('paths'):
 
-                if field == 'date':
-                    try:
-                        parts = values[0].split('T')[0].split('-')
-                        boolean_terms.add('Y{0}'.format(parts[0]))
-                        boolean_terms.add('M{0}{1}'.format(parts[0], parts[1]))
-                        boolean_terms.add('D{0}{1}{2}'.format(parts[0], parts[1], parts[2]))
+            for section in data:
+           
+                if section[0] == '_': continue
+
+                for field, values in data[section].items():
+
+                    # handle paths section
+                    if section == 'paths':
+                        boolean_terms.add('{0}{1}'.format(terms.BOOLEAN_TERMS['branch'], field.lower()))
+                        p, _ = os.path.splitext(values)
+                        for t in p.split(os.sep):
+                            boolean_terms.add('{0}{1}'.format(terms.BOOLEAN_TERMS['path'], t.lower()))
                         continue
-                    except IndexError:
-                        pass
 
-                # prepare boolean prefixed terms
-                if field in terms.BOOLEAN_TERMS:
-                    field = terms.BOOLEAN_TERMS[field]
+                    # handle arrays and straight values
+                    if not isinstance(values, (list, tuple)):
+                        values = [values]
+
+                    # prepare boolean prefixed terms
+                    if field in terms.BOOLEAN_TERMS:
+                        field = terms.BOOLEAN_TERMS[field]
+
+                        for value in values:
+                            if value: boolean_terms.add(field + value.lower())
+                    elif field in terms.FREE_TERMS:
+                        field = terms.FREE_TERMS[field]
+
+                    # some fields shouldn't be added to full text index
+                    if field in terms.BOOLEAN_ONLY:
+                        continue
+
+                    # handle dates
+                    if field[0] == 'D':
+                        boolean_terms.add('{0}{1}'.format(field, term_date(values[0])))
+                        continue
+
+                    # full-text indexing
                     for value in values:
-                        if value: boolean_terms.add(field + value.lower())
-                elif field in terms.FREE_TERMS:
-                    field = terms.FREE_TERMS[field]
-
-                if field in terms.SKIP_FREE:
-                    continue
-
-                for value in values:
-                    for word in value.split():
-                        self.term_generator.index_text(word)
-                    self.term_generator.increase_termpos()
-
-            for branch, link in paths.items():
-                boolean_terms.add('B{0}'.format(branch.lower()))
-                p, _ = os.path.splitext(link)
-                for t in p.split(os.sep):
-                    boolean_terms.add('P{0}'.format(t.lower()))
-
+                        for word in value.split():
+                            self.term_generator.index_text(word)
+                        self.term_generator.increase_termpos()
+       
             boolean_terms.add('XSok')
         else:
             boolean_terms.add('XSdropped')
 
-        # add the boolean terms after the 
+        # add the boolean terms after the free terms 
         for t in boolean_terms:
             doc.add_boolean_term(t)
 
@@ -176,11 +210,13 @@ class XapianIndexer:
         idterm = "QK{0}".format(key)
         doc.add_boolean_term(idterm)
 
-        #print([ x.term for x in doc.termlist() ])
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("Data: %r", data)
+            logger.debug("Terms: %r", [ x.term for x in doc.termlist() ])
 
         self.db.replace_document(idterm, doc)
 
-    def get_data(self, key):
+    def get_data(self, key, include_terms=False):
         term = "QK{0}".format(key)
 
         matches = list(self.db.postlist(term))
@@ -188,8 +224,13 @@ class XapianIndexer:
         if len(matches) == 0: raise KeyError("Key not found");
 
         docid = matches[0].docid
-        data = json.loads(self.db.get_document(docid).get_data())
+        doc = self.db.get_document(docid)
+        data = json.loads(doc.get_data())
         data['_docid'] = docid
+
+        if include_terms:
+            data['_terms'] = [ x.term for x in doc.termlist() ]
+
         return data
 
     def alldocs(self, offset=0, pagesize=10):

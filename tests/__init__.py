@@ -3,7 +3,9 @@ import logging
 import shutil
 import subprocess
 import tempfile
-from librarian import Librarian
+from librarian import Librarian, progress
+
+progress.ENABLED = False
 
 debug = os.environ.get('DEBUG')
 if debug is not None:
@@ -13,7 +15,7 @@ if debug is not None:
 def create_repo(repo):
     subprocess.check_output(['git', '-C', repo, 'init'])
     subprocess.check_output(['git', '-C', repo, 'annex', 'init', 'testing'])
-    l = Librarian(repo, progress=None)
+    l = Librarian(repo)
 
     for i in range(3):
         d = os.path.join(repo, 'dir_{0}'.format(i))
@@ -29,7 +31,7 @@ def create_repo(repo):
 def clone_repo(origin, repo):
     subprocess.check_output(['git', 'clone', origin, repo], stderr=subprocess.STDOUT)
     subprocess.check_output(['git', '-C', repo, 'annex', 'init', 'testing'])
-    l = Librarian(repo, progress=None)
+    l = Librarian(repo)
     return l
 
 def destroy_repo(repo):

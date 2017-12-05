@@ -26,19 +26,18 @@ class InspectorTestCase(unittest.TestCase):
         s = os.stat('requirements.txt')
 
         self.assertDictEqual(data['file'], {
-            'created': data['file']['created'],
             'mimetype': ['text', 'plain'],
             'extension': ['txt'], 
             'size': ['0kB'],
         })
 
-        self.assertDictEqual(data['info'], {'inspectors': ['file']})
+        self.assertDictEqual(data['librarian'], {'inspector': ['file-1.0.0']})
 
     def test_nomatch(self):
         i = Inspector('file', 'exif')
 
         data = i.inspect_file('requirements.txt')
-        self.assertEqual(data['info']['inspectors'], ['file'])
+        self.assertEqual(data['librarian']['inspector'], ['file-1.0.0'])
 
     def test_error(self):
         i = Inspector('file')
@@ -49,7 +48,7 @@ class InspectorTestCase(unittest.TestCase):
         i.add_inspector('bad', bad_indexer, ['txt'])
 
         data = i.inspect_file('requirements.txt')
-        self.assertEqual(data['info']['inspectors'], ['file'])
+        self.assertEqual(data['librarian']['inspector'], ['file-1.0.0'])
 
 
     def test_image(self):

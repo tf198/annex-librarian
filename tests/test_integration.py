@@ -66,7 +66,6 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
         l = create_repo(self.repo)
         head = l.sync()
         
-
         self.assertSearchResult(l.db.alldocs(), ALL_DOCS)
 
         self.assertSearchResult(l.search('path:dir_2'),
@@ -76,8 +75,7 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
 
         data = l.db.get_data('SHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt')
         self.assertEqual(data['_docid'], 3)
-        self.assertDictEqual(data['meta'], {'state': 'untagged'})
-        self.assertDictEqual(data['info'], {'state': 'noinfo'})
+        self.assertDictEqual(data['meta'], {'state': ['new', 'untagged']})
         self.assertEqual(data['_date'][:10], NOW[:10])
 
         self.assertEqual(l.sync(), head)
@@ -124,10 +122,9 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
 
         data = l.db.get_data('SHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt')
         self.assertEqual(data['_docid'], 2)
-        self.assertEqual(data['_date'], data['log']['added'])
-        self.assertDictEqual(data['meta'], {'state': 'untagged'})
+        self.assertEqual(data['_date'], data['annex']['added'])
+        self.assertDictEqual(data['meta'], {'state': ['new', 'untagged']})
         self.assertDictEqual(data['file'], {
-            'created': data['file']['created'],
             'extension': ['txt'],
             'mimetype': ['text', 'plain'],
             'size': ['0kB']
@@ -137,39 +134,47 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
 
         # check the terms generated for test_1
         self.assertDocTerms(l.db.db.get_document(2), [
+            DNOW[:4],
             'Bmaster',
             'D' + DNOW,
             'DA' + DNOW,
-            'DC' + DNOW,
             'Etxt',
+            'Ftest_1',
             'Pdir_1',
-            'Ptest_1',
             'QKSHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt',
             'Tplain', 'Ttext',
-            'XIfile',
+            'XIfile-1.0.0',
             'XK0kb',
-            'XSok',
+            'XSnew',
             'XSuntagged',
+            'Y' + DNOW[:4],
+            'ZFtest_1',
+            'Ztest_1',
+            'test_1'
         ])
 
         # check the terms generated for test_3
         self.assertDocTerms(l.db.db.get_document(3), [
+            '2001',
             'Bmaster',
             'D20010101',
             'DA' + DNOW,
             'Etxt',
+            'Ftest_2',
             'Kanimals',
             'Kcat',
             'Pdir_2',
-            'Ptest_2',
             'QKSHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt',
-            'XSnoinfo',
-            'XSok',
+            'XInone',
             'XStagged',
+            'Y2001',
+            'ZFtest_2',
             'Zanim',
             'Zcat',
+            'Ztest_2',
             'animals',
             'cat',
+            'test_2'
         ])
 
         self.assertSearchResult(l.db.search('animal'),
@@ -235,26 +240,26 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
         l.sync()
 
         data = l.db.get_data(DOC_KEYS['test_1'])
-        self.assertDictEqual(data['paths'], {'master': 'dir_1/test_1.txt'})
+        self.assertDictEqual(data['git']['branch'], {'master': 'dir_1/test_1.txt'})
 
         l.annex.git_raw('rm', 'dir_1/test_1.txt')
         l.sync()
 
         # not yet committed - still present
         data = l.db.get_data(DOC_KEYS['test_1'])
-        self.assertDictEqual(data['paths'], {'master': 'dir_1/test_1.txt'})
+        self.assertDictEqual(data['git']['branch'], {'master': 'dir_1/test_1.txt'})
 
         l.annex.git_raw('commit', '-m', 'Removed test_1')
         l.sync()
 
         # content still exists for key
         data = l.db.get_data(DOC_KEYS['test_1'])
-        self.assertDictEqual(data['paths'], {})
-        self.assertEqual(data['meta']['state'], 'untagged')
+        self.assertDictEqual(data['git'], {'branch': {}})
+
+        self.assertEqual(data['meta']['state'], ['new', 'untagged'])
 
         # but is not searchable
         self.assertDocTerms(l.db.db.get_document(2), [
-            'D' + DNOW,
             'QK' + DOC_KEYS['test_1'],
             'XSdropped',
         ])
@@ -264,7 +269,7 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
         l.sync()
     
         data = l.db.get_data(DOC_KEYS['test_1'])
-        self.assertDictEqual(data['paths'], {'master': 'dir_1/test_1.txt'})
+        self.assertDictEqual(data['git']['branch'], {'master': 'dir_1/test_1.txt'})
         
         # un annex one of the files
         l.annex.git_raw('annex', 'unannex', 'dir_1/test_1.txt')
@@ -272,13 +277,12 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
        
         # branch file deleted but content still present
         data = l.db.get_data(DOC_KEYS['test_1'])
-        self.assertEqual(data['paths'], {})
-        self.assertEqual(data['meta']['state'], 'untagged')
+        self.assertEqual(data['git']['branch'], {})
+        self.assertEqual(data['meta']['state'], ['new', 'untagged'])
 
         # but is not searchable
         doc = l.db.db.get_document(2)
         self.assertDocTerms(doc, [
-            'D' + DNOW,
             'QK' + DOC_KEYS['test_1'],
             'XSdropped'
         ])

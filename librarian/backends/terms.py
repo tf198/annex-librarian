@@ -2,10 +2,10 @@
 SCHEMA_VERSION = '0.2'
 
 '''
-Boolean terms will be indexed prefixed without any position information.
-They will also be indexed stemmed.
+Will be indexed prefixed and unstemmed.
+Will be registered as boolean terms with query parser.
 '''
-BOOLEAN_PREFIXES = (
+PREFIXED_UNSTEMMED_BOOLEAN = (
     ('topic', 'B'),
     ('branch', 'B'),
     ('extension', 'E'),
@@ -23,33 +23,42 @@ BOOLEAN_PREFIXES = (
     ('exclude', 'V'),
     ('year', 'Y'),
 
-    ('device', 'XD'),
-    ('size', 'XK'),
-    ('inspectors', 'XI'),
-    ('props', 'XP'),
-    ('properties', 'XP'),
     ('state', 'XS'),
+    ('inspector', 'XI'),
 )
 
 '''
-Free terms will be indexed stemmed with positional information.
+Will be indexed prefixed and unstemmed
 '''
-FREE_PREFIXES = (
-    ('author', 'A'),
+PREFIXED_UNSTEMMED = (
     ('date', 'D'),
+
     ('created', 'DC'),
     ('added', 'DA'),
+    
+    ('device', 'XD'),
+    ('size', 'XK'),
+    ('props', 'XP'),
+    ('properties', 'XP'),
+)
+
+'''
+Will be indexed stemmed with positional information.
+'''
+STEMMED = (
+    ('author', 'A'),
     ('filename', 'F'),
     ('raw', 'R'),
     ('subject', 'S'), # or title
     ('description', 'S'),
 )
 
-BOOLEAN_TERMS = dict(BOOLEAN_PREFIXES)
-FREE_TERMS = dict(FREE_PREFIXES)
+
+PREFIXED_UNSTEMMED_BOOLEAN_TERMS = dict(PREFIXED_UNSTEMMED_BOOLEAN)
+PREFIXED_UNSTEMMED_TERMS = dict(PREFIXED_UNSTEMMED)
+STEMMED_TERMS = dict(STEMMED)
 
 '''
-These prefixes will be skipped for stemming
+Will also be indexed unprefixed and unstemmed: tag
 '''
-# extension, path, mimetype, size
-BOOLEAN_ONLY = ('E', 'T', 'P', 'XK', 'XI', 'XS')
+BOOLEAN_UNPREFIXED_STEMMED = ('K', )

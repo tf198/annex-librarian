@@ -1,3 +1,9 @@
+'''
+Librarian reads the changes from the git log and updates the
+index based on that data
+
+'''
+
 import os.path
 import logging
 import sys
@@ -71,13 +77,13 @@ class Librarian:
 
                 if filename.endswith('.log.met'):
                     key = filename[:-8]
-                    data = {'meta': self._process_meta_log(key, stat)}
+                    data = self._process_meta_log(key, stat)
 
                 if filename.endswith('.log'):
                     key = filename[:-4]
                     _, ext = os.path.splitext(key)
                     stat['ext'] = ext[1:]
-                    data = {'log': self._process_log(key, stat)}
+                    data = self._process_log(key, stat)
 
                 if filename.endswith('.info'):
                     key = filename[:-5]
@@ -99,25 +105,16 @@ class Librarian:
 
             for commit in commits:
                 for filename, stat in self.annex.file_modifications(commit):
-                    key, p = self._process_branch_file('master', filename, stat)
+                    key, p = self._key_for_branch_file('master', filename, stat)
 
-                    try:
-                        data = self.db.get_data(key)
-                    except KeyError:
-                        data = {}
-                    paths = data.setdefault('paths', {})
-
-                    
+                    data = self.db.get_or_create_data(key)
+                    branches = data.setdefault('git', {}).setdefault('branch', {})
 
                     if p is None:
-                        del(paths[branch])
+                        del(branches[branch])
                     else:
-                        paths[branch] = p
-                    try:
-                        self.db.put_data(key, data)
-                    except:
-                        logger.exception("Failed to put data: %r", data)
-                        raise
+                        branches[branch] = p
+                    self.db.put_data(key, data)
 
                 self.set_head(branch, commit)
                 pbar.tick(commit)
@@ -138,37 +135,32 @@ class Librarian:
     def _process_meta_log(self, key, stat):
         if stat['action'] == 'D':
             logger.warning("Deleted meta for %s", key)
-            return
+            return {"meta": {"state": ["untagged"]}}
 
         meta = parse_meta_log(self.annex.git_lines('cat-file', 'blob', stat['blob']))
         
         meta['state'] = ['tagged'] if len(meta.get('tag', [])) > 0 else ['untagged']
-        #meta['updated'] = stat['date'][:19]
-
-        return meta
+        return {"meta": meta}
 
     def _process_log(self, key, stat):
 
 
-        # TODO: add content location
-        if stat['action'] in ['A', 'M']:
-            locations = parse_location_log(self.annex.git_lines('cat-file', 'blob', stat['blob']))
-            log = {
-                'updated': stat['date'][:19],
+        # TODO: add content location?
+        if stat['action'] == 'A':
+            return {"annex": {
+                'added': stat['date'][:19],
                 'extension': stat['ext'],
-                'locations': locations,
-            }
-            return log
+            }}
 
         if stat['action'] == 'D':
             logger.warning("Deleted logfile for %s:", key)
-        
-        return None
+            return {"annex": {"state": "deleted"}}
 
     def _process_info(self, key, stat):
-        return self.annex.git_json('cat-file', 'blob', stat['blob'])
+        data = self.annex.git_json('cat-file', 'blob', stat['blob'])
+        return data
 
-    def _process_branch_file(self, branch, filename, stat):
+    def _key_for_branch_file(self, branch, filename, stat):
 
         if stat['mode'] == "120000" and stat['action'] == 'A':
             key = self.annex.key_for_link(filename)

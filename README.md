@@ -7,12 +7,12 @@ folder and everything will still come back to the same state.
 You can build the index on __any__ clone without pulling in the annexed files.  Web interface will
 pull them in from another location on demand.
 
-Includes basic extractors for images and PDFs that create html representations of the objects but these are
-optional and you can implement your own indexing strategy if required.
+Includes basic inspectors for `images` and `PDFs` that create `json` representations of the objects but
+these are optional and you can implement your own indexing strategy if required.
 
 Adds a couple of extra files to the `git-annex` branch:
 
-111/222/SHA256E-s12--aa...ff.json: JSON representation of the file.
+111/222/SHA256E-s12--aa...ff.info: JSON representation of the file.
 
 111/222/SHA256E-s12-aa...ff.jpg: Preview image - should be less than 10K.  This can be annexed - TODO: figure 
 out how we exclude these....
@@ -42,7 +42,7 @@ From the command line:
 	git librarian sync
 
 	# use xapian query syntax
-	git librarian search -- tag:special +date:2017-03* -tag:boring
+	git librarian search -- tag:special +date:201703* -tag:boring
 
 Web interface:
 
@@ -54,9 +54,9 @@ Web interface:
 ### Unindexed ###
 Some pseudo properties are stored in the search engine
 
-* date - commit date
-* state - `nometa`
-
+* added:<first commit date> (DA:200170101)
+* state:untagged (XS:untagged)
+* inspector:none (XI:none)
 
 ### File ###
 Uses `stat` for some basic properties
@@ -79,6 +79,57 @@ Properties are all stored under the `props` key and are
 * pano - if landscape and aspect > 2
 * resolution - e.g. `300dpi`
 * colour: `RGB` or `BW`
+
+### Data structure
+
+	{
+		"_docid": 1234,
+		"librarian": {
+			"inspector": ["file-1.0.0", "image-1.0.1"]
+		},
+		"annex": {
+			"added": <date>,
+			...	
+		},
+		"git": {
+			branches: {
+				"master": "boats/canoe.jpg"
+			},
+		},
+		"meta": {
+			"tag": ["boat", "blue"],
+			...
+		},
+		"image": {
+			"props": [],
+			"date": <date>,
+			"device": ["make", "model"]
+			...
+		},
+		"file": {
+			"ctime": <date>,
+			"ext": "jpg",
+			...	
+		}
+	}
+
+### Indexing ###
+
+Four types:
+* prefixed unstemmed
+* prefixed unstemmed boolean
+* prefixed unstemmed, unprefixed stemmed, boolean
+* prefixed stemmed, unprefixed stemmed
+
+dates:		PU
+tag:		PU-US-B
+folder:		PU
+inspectors:	PU
+extension:	PU-B
+mimetype: 	PU-B
+branch: 	PU-B
+subject:	PS-US
+
 
 
 ## TODO ##

@@ -113,15 +113,12 @@ def run_missing(l, options):
     for f in glob.glob(options.folder):
         if os.path.isfile(f):
             key = p.execute(f)
-            #key = l.annex.git_line('annex', 'calckey', f)
-            #print(f, key)
             if not l.db.exists(key):
                 print("%s" % f)
-            #print("FILE: %s", f)
         else:
-            logger.debug("Skipping %s", f)
+            logger.warn("Skipping %s", f)
 
-    #p.close()
+    p.close()
 
 parser = argparse.ArgumentParser(description="Curator for your annexed data")
 

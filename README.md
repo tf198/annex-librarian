@@ -1,10 +1,10 @@
 # Annex Librarian #
 
 Xapian based search engine for your annexed data.  Incrementally updates based on
-the annex metadata so everything important stays with the repo - can remove the _librarian_
+the annex data so everything important stays with the repo - can remove the _.git/librarian_
 folder and everything will still come back to the same state.
 
-You can build the index on __any__ clone without pulling in the annexed files.  Web interface will
+You can build the index on __any__ clone without pulling in the annexed files.  The web interface will
 pull them in from another location on demand.
 
 Includes basic inspectors for `images` and `PDFs` that create `json` representations of the objects but
@@ -32,7 +32,8 @@ Requires _python_, _python-xapian_
 
 	pip install -r requirements.txt
 
-and then ensure _git-librarian_ is on your path.
+and then ensure _git-librarian_ is on your path.  If you use virtualenv you will need the `--system-site-packages`
+option so it can find you xapian library.
 
 ## Usage ##
 
@@ -112,25 +113,6 @@ Properties are all stored under the `props` key and are
 			...	
 		}
 	}
-
-### Indexing ###
-
-Four types:
-* prefixed unstemmed
-* prefixed unstemmed boolean
-* prefixed unstemmed, unprefixed stemmed, boolean
-* prefixed stemmed, unprefixed stemmed
-
-dates:		PU
-tag:		PU-US-B
-folder:		PU
-inspectors:	PU
-extension:	PU-B
-mimetype: 	PU-B
-branch: 	PU-B
-subject:	PS-US
-
-
 
 ## TODO ##
 

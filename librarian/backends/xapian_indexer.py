@@ -108,6 +108,13 @@ class XapianIndexer:
     def close(self):
         self.unset_writable()
 
+    def exists(self, key):
+        term = "QK{0}".format(key)
+
+        c = len(list(self.db.postlist(term)))
+        if c > 1: raise KeyError("Key is not unique!")
+        return c == 1
+
     def get_value(self, key):
         return self.db.get_metadata(key)
 

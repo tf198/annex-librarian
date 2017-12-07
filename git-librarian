@@ -105,6 +105,24 @@ def run_inspector(l, options):
 
     return "Inspected {inspected} of {total} files".format(**result)
 
+def run_missing(l, options):
+    import glob
+    
+    p = l.annex.git_batch(['annex', 'calckey'])
+
+    for f in glob.glob(options.folder):
+        if os.path.isfile(f):
+            key = p.execute(f)
+            #key = l.annex.git_line('annex', 'calckey', f)
+            #print(f, key)
+            if not l.db.exists(key):
+                print("%s" % f)
+            #print("FILE: %s", f)
+        else:
+            logger.debug("Skipping %s", f)
+
+    #p.close()
+
 parser = argparse.ArgumentParser(description="Curator for your annexed data")
 
 parser.add_argument('-C', default='.', dest="path", 
@@ -160,6 +178,11 @@ inspect_cmd.add_argument('-b', '--batch', type=int, default=100)
 inspect_cmd.add_argument('-l', '--limit', type=int, default=0)
 inspect_cmd.add_argument('files', nargs="*" ,help="Files to inspect")
 inspect_cmd.set_defaults(func=run_inspector)
+
+missing_cmd = subparsers.add_parser('missing', help="Find files missing from the annex", description="Find files missing from the annex")
+missing_cmd.add_argument('folder', help="Folder glob to check")
+missing_cmd.set_defaults(func=run_missing)
+
 
 args = parser.parse_args()
 

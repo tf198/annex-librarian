@@ -236,6 +236,7 @@ class XapianIndexer:
                             self.term_generator.index_text(value, 1, terms.STEMMED_TERMS[field])
                             self.term_generator.index_text(value)
                             self.term_generator.increase_termpos()
+            doc.add_term('XSok')
         else:
             doc.add_term('XSdropped')
        
@@ -254,16 +255,15 @@ class XapianIndexer:
 
     def search(self, querystring, offset=0, pagesize=10, raw=False):
 
-        logger.debug("QUERY: %s", querystring)
-        if querystring:
-            if raw:
-                query = xapian.Query(querystring)
-            else:
-                query = self.query_parser.parse_query(querystring,
-                        xapian.QueryParser.FLAG_PURE_NOT | xapian.QueryParser.FLAG_WILDCARD | xapian.QueryParser.FLAG_BOOLEAN | xapian.QueryParser.FLAG_LOVEHATE)
-        else:
-            query = xapian.Query.MatchAll
+        if not querystring:
+            querystring = "state:ok"
 
+        logger.debug("QUERY: %s", querystring)
+        if raw:
+            query = xapian.Query(querystring)
+        else:
+            query = self.query_parser.parse_query(querystring,
+                        xapian.QueryParser.FLAG_PURE_NOT | xapian.QueryParser.FLAG_WILDCARD | xapian.QueryParser.FLAG_BOOLEAN | xapian.QueryParser.FLAG_LOVEHATE)
 
         # allow for re-open
         retries = 2

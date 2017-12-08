@@ -70,7 +70,7 @@ class Librarian:
             for filename, stat in self.annex.file_modifications(commit):
 
                 filename=os.path.basename(filename)
-                if filename in ('uuid.log', ):
+                if filename in ('uuid.log', 'group.log', 'numcopies.log', 'transitions.log'):
                     continue
 
                 data = None

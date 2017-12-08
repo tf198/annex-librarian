@@ -38,6 +38,8 @@ def run_search(l, options):
         p = data.get('git', {}).get('branch', {}).get(branch)
         if p is None:
             filtered += 1
+            logger.debug("Filtered: %s", r['key'])
+            print(data)
         else:
             sys.stdout.write("%s\n" % p)
 
@@ -79,6 +81,9 @@ def run_show(l, options):
 def run_inspector(l, options):
     from librarian.inspectors import Inspector 
 
+    if not options.nosync:
+        l.sync()
+
     inspector = Inspector('file', 'image')
 
     if options.files:
@@ -108,6 +113,9 @@ def run_inspector(l, options):
 def run_missing(l, options):
     import glob
     
+    if not options.nosync:
+        l.sync()
+
     p = l.annex.git_batch(['annex', 'calckey'])
 
     for f in glob.glob(options.folder):
@@ -128,6 +136,8 @@ parser.add_argument('-l', dest="logging",
         help="Logging string (format: name:level, default: none)")
 parser.add_argument('-q', '--quiet', action="store_true",
         help="Dont output progress")
+parser.add_argument('-n', '--nosync', action="store_true",
+        help="Dont sync before operation")
 
 subparsers = parser.add_subparsers();
 
@@ -205,6 +215,7 @@ logger.debug("Args: %r", args)
 
 try:
     l = Librarian(args.path)
+
     result = args.func(l, args)
     if result:
         sys.stdout.write(result)

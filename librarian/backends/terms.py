@@ -25,6 +25,11 @@ PREFIXED_UNSTEMMED_BOOLEAN = (
 
     ('state', 'XS'),
     ('inspector', 'XI'),
+    ('device', 'XD'),
+    ('props', 'XP'),
+    ('prop', 'XP'),
+    ('properties', 'XP'),
+    ('property', 'XP'),
 )
 
 '''
@@ -36,10 +41,7 @@ PREFIXED_UNSTEMMED = (
     ('created', 'DC'),
     ('added', 'DA'),
     
-    ('device', 'XD'),
     ('size', 'XK'),
-    ('props', 'XP'),
-    ('properties', 'XP'),
 )
 
 '''

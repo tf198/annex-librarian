@@ -1,0 +1,116 @@
+[
+{
+ "git": {
+  "branch": {"master": "boats/boat-1.jpg"}
+ }, 
+ "annex": {
+  "added": "2017-12-02T10:13:41", 
+  "extension": "jpg"
+ }, 
+ "image": {
+  "device": ["Nokia", "E51"], 
+  "created": ["2008-10-25T17:27:52"], 
+  "props": [
+   "150dpi", 
+   "portrait", 
+   "3:4", 
+   "medres", 
+   "RGB"
+  ]
+ }, 
+ "meta": {
+  "state": ["new", "untagged"]
+ }, 
+ "file": {
+  "mimetype": ["image", "png"], 
+  "extension": ["png"], 
+  "size": ["296kB"]
+ }, 
+ "librarian": {
+  "inspector": ["file-1.0.0", "image-1.0.0"]
+ } 
+},
+{
+ "git": {
+  "branch": {"master": "canoes/canoe_1.jpg"
+  }
+ }, 
+ "annex": {
+  "added": "2017-12-02T10:13:41", 
+  "extension": "jpg"
+ }, 
+ "image": {
+  "device": ["Nokia", "E51"],
+  "props": [
+   "300dpi", 
+   "landscape", 
+   "4:3", 
+   "medres", 
+   "RGB"
+  ]
+ }, 
+ "meta": {
+  "state": ["tagged"], 
+  "tag": ["boat", "paddling"], 
+  "description": ["A blue canoe"]
+ }, 
+ "file": {
+  "mimetype": ["image", "jpeg"], 
+  "extension": ["jpg"], 
+  "size": ["444kB"]
+ }, 
+ "librarian": {
+  "inspector": ["file-1.0.1", "image-1.0.0"]
+ } 
+},
+{
+ "git": {
+  "branch": {"master": "boats/boat_2.jpg"}
+ }, 
+ "annex": {
+  "added": "2017-12-02T10:13:41", 
+  "extension": "jpg"
+ }, 
+ "image": {
+  "device": ["Nokia", "E51"],
+  "created": ["2008-10-25T17:27:52"], 
+  "props": [
+   "150dpi", 
+   "portrait", 
+   "3:4", 
+   "medres", 
+   "RGB"
+  ]
+ }, 
+ "meta": {
+  "state": ["tagged"],
+  "tag": ["boat", "blue", "oar"],
+  "date": ["2016-01-03T00:00:00"]
+ }, 
+ "file": {
+  "mimetype": ["image", "jpeg"], 
+  "extension": ["jpg"], 
+  "size": ["243kB"]
+ }, 
+ "librarian": {
+  "inspector": ["file-1.0.0", "image-1.0.0"]
+ } 
+},
+{
+ "annex": {
+  "added": "2017-12-02T10:13:41", 
+  "extension": "jpg"
+ }, 
+ "meta": {
+  "state": ["new", "untagged"]
+ }, 
+ "file": {
+  "mimetype": ["image", "jpeg"], 
+  "extension": ["jpg"], 
+  "size": ["243kB"]
+ }, 
+ "librarian": {
+  "inspector": ["file-1.0.0"]
+ } 
+}
+]

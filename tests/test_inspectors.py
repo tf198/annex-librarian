@@ -61,3 +61,9 @@ class InspectorTestCase(unittest.TestCase):
             'props': ['300dpi', 'landscape', '4:3', 'medres', 'RGB']
         })
 
+    def test_pdf(self):
+        self.skipTest("Not yet implemented")
+        i = Inspector('pdf')
+
+        info = i.inspect_file('tests/files/monty_quotes.pdf')
+        print(info)

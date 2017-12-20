@@ -9,7 +9,8 @@ import os.path
 import logging
 import sys
 import json
-from gevent import subprocess
+#from gevent import subprocess
+import subprocess
 
 from .backends import xapian_indexer as backend
 from .annex import Annex, parse_meta_log, parse_location_log

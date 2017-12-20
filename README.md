@@ -26,7 +26,7 @@ See below for fields to avoid if you are going to use the indexers.  If the inde
 then the fields they generate will be overwritten but others left as is.
 
 ## Installation ##
-Currently uses python2.7 - will add six soon...
+Currently tested on python2.7 and python3.5.
 
 Requires _python_, _python-xapian_
 

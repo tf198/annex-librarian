@@ -1,13 +1,23 @@
 '''
 Helpers for interacting with an annexed git repo
 '''
+from __future__ import absolute_import, division, print_function
+from builtins import bytes
 
-from gevent import subprocess
+#from gevent import subprocess
+import subprocess
 import os.path
 import logging
 import json
 import sys
 import base64
+import io
+from collections import OrderedDict
+
+try:
+    subprocess.DEVNULL
+except AttributeError:
+    subprocess.DEVNULL = open('/dev/null', 'wb')
 
 logger = logging.getLogger(__name__)
 
@@ -26,30 +36,39 @@ DEBUG = logger.isEnabledFor(logging.INFO)
 class GitBatch:
 
     def __init__(self, cmd, is_json=False):
-        devnull = None if DEBUG else open(os.devnull, 'w')
-        self.p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=devnull)
         self.is_json = is_json
-        self.cmd = " ".join(cmd)
-        logger.debug("Spawned %r", self.cmd)
+        self.cmd = cmd
+
+    def __enter__(self):
+        err = None if DEBUG else subprocess.DEVNULL
+        self.p = subprocess.Popen(self.cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=err, bufsize=0)
+        logger.debug(u"Spawned %r", self.cmd)
+        return self
+
+    def __exit__(self, *args):
+        self.p.stdin.close()
+        self.p.stdout.close()
+        self.p.wait()
+
+        if self.p.returncode != 0:
+            raise subprocess.CalledProcessError(self.p.returncode, " ".join(self.cmd), u"Batch failed")
+        logger.debug(u"Finished batch")
 
     def execute(self, line, is_json=False):
         if self.is_json:
             line = json.dumps(line)
-        self.p.stdin.write(line)
-        self.p.stdin.write('\n')
+        logger.debug(u"Executing %r", line)
+        self.p.stdin.write(bytes(line, 'utf-8'))
+        self.p.stdin.write(b'\n')
 
         result = self.p.stdout.readline().rstrip()
         if self.is_json or is_json:
             result = json.loads(result)
+        logger.log(5, u"Received %r", result)
         return result
 
     def close(self):
-        self.p.stdin.close()
-        self.p.wait()
-
-        if self.p.returncode != 0:
-            raise subprocess.CalledProcessError(self.p.returncode, self.cmd, "Batch failed")
-        logger.debug("Finished batch")
+        raise RuntimeError("Depreciated call to close()")
 
 class Annex:
 
@@ -57,8 +76,8 @@ class Annex:
         self.repo = os.path.abspath(path)
         
         # check it is an annexed repo
-        if not os.path.exists(os.path.join(self.repo, '.git', 'annex')):
-            raise IOError("{} is not an annexed repo".format(self.repo))
+        if not os.path.exists(os.path.join(self.repo, u'.git', u'annex')):
+            raise IOError(u"{} is not an annexed repo".format(self.repo))
 
         self.git_options = {'work_dir': self.repo};
 
@@ -84,13 +103,15 @@ class Annex:
 
         if p.returncode != 0:
             if DEBUG:
-                sys.stderr.write("-- ERROR: %s\n" % repr(cmd))
-                sys.stderr.write("-- STDOUT\n")
+                sys.stderr.write(u"-- ERROR: %s\n" % repr(cmd))
+                sys.stderr.write(u"-- STDOUT\n")
                 sys.stderr.write(sout)
-                sys.stderr.write("-- STDERR\n")
+                sys.stderr.write(u"-- STDERR\n")
                 sys.stderr.write(serr)
-                sys.stderr.write("-- END\n")
+                sys.stderr.write(u"-- END\n")
             raise subprocess.CalledProcessError(p.returncode, " ".join(cmd), sout + serr)
+
+        logger.log(5, "Received %r", sout)
 
         return sout
 
@@ -98,18 +119,18 @@ class Annex:
         return json.loads(self.git_raw(*args, **kwargs))
 
     def git_lines(self, *args, **kwargs):
-        s = self.git_raw(*args, **kwargs).strip()
+        s = self.git_raw(*args, **kwargs).decode('utf-8').strip()
         if s == '': return []
         return s.split("\n")
 
     def git_line(self, *args, **kwargs):
         r = self.git_lines(*args, **kwargs)
 
-        if len(r) != 1: raise GitError("Expected one line, got {0}".format(len(r)), "\n".join(r))
+        if len(r) != 1: raise GitError(u"Expected one line, got {0}".format(len(r)), "\n".join(r))
         return r[0]
 
     def git_batch(self, args, is_json=False):
-        extra = ('--json', '--batch') if is_json else ('--batch', )
+        extra = (u'--json', u'--batch') if is_json else (u'--batch', )
         #cmd = self.git_cmd + tuple(args) + extra
         cmd = self.git_cmd(tuple(args) + extra)
         return GitBatch(cmd, is_json)
@@ -117,10 +138,10 @@ class Annex:
     def content_for_link(self, link):
         l = self.relative_path(link)
         if not os.path.islink(l):
-            raise AnnexError("Not an annexed file: " + link)
+            raise AnnexError(u"Not an annexed file: " + link)
         p = os.path.realpath(l)
         if not p.startswith(self.repo):
-            raise AnnexError("Not an annexed file: " + link)
+            raise AnnexError(u"Not an annexed file: " + link)
         return p
 
     def key_for_link(self, link):
@@ -134,7 +155,7 @@ class Annex:
         Returns <string> path to content.
         '''
         try:
-            p = self.git_line('annex', 'examinekey', '--format', '.git/annex/objects/${hashdirmixed}${key}/${key}', key)
+            p = self.git_line(u'annex', u'examinekey', u'--format', u'.git/annex/objects/${hashdirmixed}${key}/${key}', key)
             p = self.relative_path(p)
         except subprocess.CalledProcessError:
             raise AnnexError("Invalid key: " + key)
@@ -182,15 +203,12 @@ class Annex:
 
         if missing:
             e = None
-            batch = self.git_batch(['annex', 'get', '--json'])
-            for link in missing:
-                result = batch.execute(link)
-                if not result:
-                    e = AnnexError("Unable to locate file: " + link)
-                    break
-                tick(os.path.basename(link))
-            batch.close()
-            if e: raise e
+            with self.git_batch(['annex', 'get', '--json']) as batch:
+                for link in missing:
+                    result = batch.execute(link)
+                    if not result:
+                        raise AnnexError("Unable to locate file: " + link)
+                    tick(os.path.basename(link))
 
         
         return items
@@ -203,7 +221,7 @@ class Annex:
         if end is None:
             try:
                 end = self.git_line('show-ref', 'refs/heads/{0}'.format(branch)).split()[0]
-            except:
+            except IOError:
                 logger.debug("No commits for branch " + branch)
                 return [] 
        
@@ -254,21 +272,23 @@ def parse_meta_log(lines):
                 op = token[0]
                 token = token[1:]
                 if token[0] == '!':
-                    token = base64.b64decode(token[1:])
+                    token = base64.b64decode(token[1:]).decode('utf-8')
 
                 if op == '+':
-                    result[field].add(token)
+                    #result[field].add(token)
+                    result[field][token] = True
                 else:
                     try:
-                        result[field].remove(token)
+                        #result[field].remove(token)
+                        result[field].pop(token)
                     except KeyError:
                         pass
             else:
                 field = token
                 if not field in result:
-                    result[field] = set()
+                    result[field] = OrderedDict()
 
-    return { k: list(v) for k, v in result.items() if v }
+    return { k: list(v.keys()) for k, v in result.items() if v }
 
 def parse_location_log(lines):
     locations = set()

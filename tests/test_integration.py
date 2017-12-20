@@ -11,9 +11,9 @@ from tests import RepoBase, create_repo, clone_repo
 #logging.basicConfig(level=logging.INFO)
 
 DOCS = (
-    ('test_0', 'SHA256E-s7--6a85a2eca1195e5201b6118281f27a581ac9c34e0caa849e40331bbbfbba3f7e.txt'),
-    ('test_1', 'SHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt'),
-    ('test_2', 'SHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt'),
+    (u'test_0', u'SHA256E-s7--6a85a2eca1195e5201b6118281f27a581ac9c34e0caa849e40331bbbfbba3f7e.txt'),
+    (u'test_1', u'SHA256E-s7--724c531a3bc130eb46fbc4600064779552682ef4f351976fe75d876d94e8088c.txt'),
+    (u'test_2', u'SHA256E-s7--e31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt'),
 )
 
 ALL_DOCS = [ x[1] for x in DOCS ]
@@ -55,10 +55,10 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
 
     def test_required_paths(self):
 
-        with self.assertRaisesRegexp(IOError, 'No such directory'):
+        with self.assertRaisesRegex(IOError, 'No such directory'):
             Librarian('bar')
 
-        with self.assertRaisesRegexp(IOError, 'not an annexed repo'):
+        with self.assertRaisesRegex(IOError, 'not an annexed repo'):
             Librarian(self.repo)
 
     def test_from_scratch(self):
@@ -212,11 +212,11 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
 
         self.assertTrue(os.path.exists(test_0))
 
-        with self.assertRaisesRegexp(AnnexError, "Invalid key: foo"):
+        with self.assertRaisesRegex(AnnexError, "Invalid key: foo"):
             l.annex.resolve_keys(['foo'])
 
         bad_key = 'SHA256E-s7--f31ee1d0324634d01318e9631c4e7691f5e6f3df483b4a2c15c610f8055ff13e.txt'
-        with self.assertRaisesRegexp(AnnexError, "Unable to locate key: " + bad_key):
+        with self.assertRaisesRegex(AnnexError, "Unable to locate key: " + bad_key):
             l.annex.resolve_keys([bad_key])
 
     def test_resolve_links(self):
@@ -231,7 +231,7 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
 
         self.assertTrue(os.path.exists(test_0))
 
-        with self.assertRaisesRegexp(AnnexError, "Not an annexed file: foo"):
+        with self.assertRaisesRegex(AnnexError, "Not an annexed file: foo"):
             l.annex.resolve_links(['foo'])
 
         p = l.annex.resolve_link('dir_1/test_1.txt')
@@ -265,6 +265,13 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
             'QK' + DOC_KEYS['test_1'],
             'XSdropped',
         ])
+
+    def test_sync(self):
+        l = clone_repo(self.origin, self.repo)
+        l.sync()
+
+        data = l.db.get_data(DOC_KEYS['test_1'])
+        self.assertEqual(data['_docid'], 2)
 
     def test_unannex(self):
         l = create_repo(self.repo)
@@ -301,6 +308,6 @@ class IntegrationTestCase(RepoBase, unittest.TestCase):
         self.assertListEqual(matches, keys)
 
     def assertDocTerms(self, doc, terms):
-        result = [ x.term for x in doc.termlist() ]
+        result = [ x.term.decode('utf-8') for x in doc.termlist() ]
         self.assertListEqual(result, terms)
 

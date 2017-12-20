@@ -3,6 +3,7 @@ Librarian reads the changes from the git log and updates the
 index based on that data
 
 '''
+from __future__ import absolute_import, division, print_function
 
 import os.path
 import logging
@@ -10,10 +11,10 @@ import sys
 import json
 from gevent import subprocess
 
-from backends import xapian_indexer as backend
-from annex import Annex, parse_meta_log, parse_location_log
+from .backends import xapian_indexer as backend
+from .annex import Annex, parse_meta_log, parse_location_log
 
-from librarian import progress
+from . import progress
 
 logger = logging.getLogger(__name__);
 
@@ -40,11 +41,11 @@ class Librarian:
 
         librarian_path = os.path.join(self.base_path, '.git', 'librarian')
         if not os.path.exists(librarian_path):
-            os.mkdir(librarian_path, 0700)
+            os.mkdir(librarian_path, 0o700)
 
         self.cache_dir = os.path.join(librarian_path, 'cache')
         if not os.path.exists(self.cache_dir):
-            os.mkdir(self.cache_dir, 0700)
+            os.mkdir(self.cache_dir, 0o700)
 
         self.db = backend.XapianIndexer(os.path.join(librarian_path, 'db'))
 

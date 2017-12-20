@@ -5,6 +5,9 @@ import json
 import os
 from librarian.backends.xapian_indexer import XapianIndexer
 
+#import logging
+#logging.basicConfig(level=logging.DEBUG)
+
 class IndexingTestCase(unittest.TestCase):
     
     @classmethod

@@ -3,9 +3,16 @@ import logging
 import shutil
 import subprocess
 import tempfile
+import sys
+import unittest
 from librarian import Librarian, progress
 
 progress.ENABLED = False
+
+PYTHON_VERSION = int(sys.version[0])
+
+#from . import trace_resources
+#trace_resources.enable()
 
 debug = os.environ.get('DEBUG')
 if debug is not None:
@@ -40,7 +47,7 @@ def destroy_repo(repo):
     if os.path.exists(objects):
         for root, dirs, files in os.walk(objects):
             for d in dirs: 
-                os.chmod(os.path.join(root, d), 0755)
+                os.chmod(os.path.join(root, d), 0o755)
 
     shutil.rmtree(repo)
 
@@ -66,3 +73,10 @@ class RepoBase(object):
 
     def clone_repo(self):
         return clone_repo(self.origin, self.repo)
+
+
+if PYTHON_VERSION == 2:
+
+    def assertRaisesRegex(self, *args, **kwargs):
+        return self.assertRaisesRegexp(*args, **kwargs)
+    RepoBase.assertRaisesRegex = assertRaisesRegex

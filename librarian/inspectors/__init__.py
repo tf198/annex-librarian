@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, print_function
+
 import os.path
 import logging
 import time
@@ -5,6 +7,7 @@ import mimetypes
 import json
 import sys
 import subprocess
+import codecs
 from librarian.progress import getProgress
 
 logger = logging.getLogger(__name__)
@@ -22,7 +25,7 @@ def file_inspector(filename):
         #'created': [time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(s.st_ctime))],
         'extension': [ext[1:].lower()],
         'mimetype': content_type.split('/'),
-        'size': ["{0:d}kB".format(s.st_size/1000)]
+        'size': ["{0:d}kB".format(int(s.st_size/1000))]
     }
 file_inspector.extensions = []
 file_inspector.version = '1.0.0'
@@ -99,7 +102,8 @@ class Inspector(object):
 
         cmd = annex.git_cmd(('fast-import', '--date-format=now', '--quiet'))
         p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
-        s = p.stdin
+        #s = io.TextIOWrapper(p.stdin, "utf-8")
+        s = codecs.getwriter('utf-8')(p.stdin)
 
         s.write("commit refs/heads/git-annex\n")
         s.write("committer {0} <{1}> now\n".format(user, email))

@@ -74,7 +74,7 @@ class XapianIndexer:
             self.query_parser.add_boolean_prefix(field, prefix)
 
     def _check_version(self):
-        current = self._db.get_metadata('db:version')
+        current = self._db.get_metadata('db:version').decode('utf-8')
         logger.debug("Database version: %s", current)
         if current and current != DB_VERSION:
             raise RuntimeError("Need to upgrade database to " + DB_VERSION)
@@ -116,14 +116,13 @@ class XapianIndexer:
         return c == 1
 
     def get_value(self, key):
-        return self.db.get_metadata(key)
+        return self.db.get_metadata(key).decode('utf-8')
 
     def set_value(self, key, value):
         return self.db.set_metadata(key, value)
 
     def get_data(self, key, include_terms=False):
-        term = "QK{0}".format(key)
-
+        term = u"QK{0}".format(key)
         matches = list(self.db.postlist(term))
         if len(matches) > 1: raise KeyError("Key is not unique!");
         if len(matches) == 0: raise KeyError("Key not found");
@@ -134,7 +133,7 @@ class XapianIndexer:
         data['_docid'] = docid
 
         if include_terms:
-            data['_terms'] = [ x.term for x in doc.termlist() ]
+            data['_terms'] = [ x.term.decode('utf-8') for x in doc.termlist() ]
 
         return data
 
@@ -287,7 +286,7 @@ class XapianIndexer:
             doc = match.document
             matches.append({
                 'rank': match.rank + 1,
-                'key': doc.get_value(0),
+                'key': doc.get_value(0).decode('utf-8'),
                 'date': decode_sortable_date(doc.get_value(1)),
             })
 

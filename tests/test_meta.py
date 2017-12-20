@@ -1,7 +1,7 @@
 import unittest
 import librarian
 
-TEST_DATA = '''
+TEST_DATA = u'''
 1501483673.556634875s date +2014-01-18T14:08:44 device +Canon +!Q2Fub24gRU9TIDYwMEQ= extension +jpg indexers +exif +file mimetype +image +jpeg orientation +landscape size +6774188
 1501483677.235289932s tag +foo +bar
 1501483690.375289235s tag -foo +nar gallery my_things
@@ -10,7 +10,7 @@ TEST_DATA = '''
 '''.split('\n')
 
 INDEXED_META = {
-    'indexers': ['file', 'exif'],
+    'indexers': ['exif', 'file'],
     'mimetype': ['image', 'jpeg'],
     'date': ['2014-01-18T14:08:44'],
     'extension': ['jpg'],
@@ -39,7 +39,7 @@ class MetaTestCase(unittest.TestCase):
     def test_parse_add_remove_tags(self):
         meta = librarian.parse_meta_log(TEST_DATA[:4])
         expected = dict(INDEXED_META)
-        expected['tag'] = ['nar', 'bar']
+        expected['tag'] = ['bar', 'nar']
         self.assertDictEqual(meta, expected)
 
     def test_parse_remove_empty(self):

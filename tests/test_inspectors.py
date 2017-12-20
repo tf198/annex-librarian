@@ -1,5 +1,6 @@
 import unittest
 import os
+import logging
 from librarian.inspectors import Inspector
 
 class InspectorTestCase(unittest.TestCase):
@@ -34,7 +35,7 @@ class InspectorTestCase(unittest.TestCase):
         self.assertDictEqual(data['librarian'], {'inspector': ['file-1.0.0']})
 
     def test_nomatch(self):
-        i = Inspector('file', 'exif')
+        i = Inspector('file', 'image')
 
         data = i.inspect_file('requirements.txt')
         self.assertEqual(data['librarian']['inspector'], ['file-1.0.0'])
@@ -42,12 +43,14 @@ class InspectorTestCase(unittest.TestCase):
     def test_error(self):
         i = Inspector('file')
 
-        def bad_indexer(filename, meta):
+        def bad_indexer(filename):
             raise IOError()
 
         i.add_inspector('bad', bad_indexer, ['txt'])
 
+        logging.disable(logging.CRITICAL)
         data = i.inspect_file('requirements.txt')
+        logging.disable(logging.NOTSET)
         self.assertEqual(data['librarian']['inspector'], ['file-1.0.0'])
 
 

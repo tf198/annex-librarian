@@ -3,32 +3,15 @@ from __future__ import absolute_import, division, print_function
 import os.path
 import logging
 import time
-import mimetypes
 import json
 import sys
 import subprocess
 import codecs
+import importlib
 from librarian.progress import getProgress
 
 logger = logging.getLogger(__name__)
 
-def file_inspector(filename):
-    'Reports posix filesystem attributes for a file'
-
-    _, ext = os.path.splitext(filename)
-
-    s = os.stat(filename)
-    content_type, encoding = mimetypes.guess_type(filename)
-
-    # ignoreing ctime as rarely relevant
-    return {
-        #'created': [time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(s.st_ctime))],
-        'extension': [ext[1:].lower()],
-        'mimetype': content_type.split('/'),
-        'size': ["{0:d}kB".format(int(s.st_size/1000))]
-    }
-file_inspector.extensions = []
-file_inspector.version = '1.0.0'
 
 class Inspector(object):
     '''Collection of inspection methods
@@ -41,8 +24,14 @@ class Inspector(object):
         self._extensions = []
 
         for e in enable:
-            getattr(self, 'enable_%s' % e)()
+            #getattr(self, 'enable_%s' % e)()
+            self.enable(e)
 
+    def enable(self, inspector):
+        m = importlib.import_module('librarian.inspectors.%s' % inspector)
+        i = getattr(m, '{}_inspector'.format(inspector))
+        self.add_inspector(inspector, i, i.extensions)
+    '''
     def enable_image(self):
         from librarian.inspectors.image import image_inspector
         self.add_inspector('image', image_inspector, ['.jpg', '.tif', '.png', '.gif'])
@@ -53,7 +42,7 @@ class Inspector(object):
 
     def enable_file(self):
         self.add_inspector('file', file_inspector, [''])
-
+    '''
     def add_inspector(self, name, inspector, extensions):
 
         if name in self._inspectors:
@@ -74,13 +63,14 @@ class Inspector(object):
         data = {'librarian': {'inspector': []}}
 
         for ext, inspector in self._extensions:
-            if f.endswith(ext):
+            if ext == ".*" or f.endswith(ext):
                 logger.debug("Running %s inspector...", inspector)
                 try:
                     m = self._inspectors[inspector]
-                    data[inspector] = m(filename)
-                    data['librarian']['inspector'].append("{0}-{1}".format(inspector, m.version))
+                    data[inspector] = m(filename) or {}
+                    data['librarian']['inspector'].append("{0}-{1}".format(inspector, getattr(m, 'version', '0.0.1')))
                 except:
+                    data[inspector] = {}
                     logger.exception("Inspection failed")
 
         return data

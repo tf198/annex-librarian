@@ -78,5 +78,5 @@ def image_inspector(filename):
 
     return info
 
-image_inspector.extensions = ['.jpg', 'jpeg', '.tif', '.png', '.gif']
+image_inspector.extensions = ['.jpg', '.jpeg', '.tif', '.png', '.gif']
 image_inspector.version = '1.0.0'
